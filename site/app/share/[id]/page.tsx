@@ -23,16 +23,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `${doc.query} - DocTree`,
-    description: `Check out this knowledge tree about ${doc.query} on DocTree.`,
+    description: `Explore the knowledge tree for "${doc.query}" on DocTree. Interactive and shareable.`,
     openGraph: {
-      title: doc.query,
-      description: `Check out this knowledge tree about ${doc.query} on DocTree.`,
-      type: 'article',
+      title: `${doc.query} - DocTree`,
+      description: `Explore the knowledge tree for "${doc.query}" on DocTree. Interactive and shareable.`,
+      type: 'website',
+      siteName: 'DocTree',
     },
     twitter: {
       card: 'summary_large_image',
-      title: doc.query,
-      description: `Check out this knowledge tree about ${doc.query} on DocTree.`,
+      title: `${doc.query} - DocTree`,
+      description: `Explore the knowledge tree for "${doc.query}" on DocTree. Interactive and shareable.`,
     }
   }
 }
