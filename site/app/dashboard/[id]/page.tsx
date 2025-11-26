@@ -2,9 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import { TopicDiagram } from '@/components/TopicDiagram'
-import { Button } from '@/components/ui/button'
+import { TopicActions } from '@/components/TopicActions'
 import Link from 'next/link'
-import { ArrowLeft, Share2, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
 export default async function TopicDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -69,7 +69,7 @@ export default async function TopicDetailsPage({ params }: { params: Promise<{ i
             
             <div>
               <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                {rootTopic.title}
+                {rootTopic.query}
               </h1>
               <p className="text-xs text-gray-500">
                 {treeDocuments.length} topics • Last updated {new Date(rootTopic.created_at).toLocaleDateString()}
@@ -77,14 +77,7 @@ export default async function TopicDetailsPage({ params }: { params: Promise<{ i
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-             <Button variant="ghost" size="icon" className="text-gray-500">
-                <Share2 className="w-4 h-4" />
-             </Button>
-             <Button variant="ghost" size="icon" className="text-gray-500">
-                <MoreHorizontal className="w-4 h-4" />
-             </Button>
-          </div>
+          <TopicActions document={rootTopic} />
         </div>
       </div>
 

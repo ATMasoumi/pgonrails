@@ -53,10 +53,11 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
 
 interface TopicDiagramProps {
   documents: Document[]
-  rootId: string
+  rootId?: string
+  readOnly?: boolean
 }
 
-export function TopicDiagram({ documents, rootId }: TopicDiagramProps) {
+export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagramProps) {
   const router = useRouter()
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
 
@@ -119,14 +120,17 @@ export function TopicDiagram({ documents, rootId }: TopicDiagramProps) {
           createdAt: doc.created_at,
           hasChildren: hasChildren(doc.id),
           isCollapsed: collapsedIds.has(doc.id),
+          readOnly,
           onToggleCollapse: () => toggleCollapse(doc.id),
           onDelete: async (id: string) => {
+            if (readOnly) return
             if (confirm('Are you sure you want to delete this topic and all its subtopics?')) {
               await deleteTopic(id)
               router.refresh()
             }
           },
           onGenerate: async (id: string, type: 'subtopic' | 'explanation') => {
+            if (readOnly) return
             // Optimistic update or just loading state
             // We need to pass a state setter or use a global store for better UX
             // For now, we'll just trigger the action and refresh
@@ -161,7 +165,7 @@ export function TopicDiagram({ documents, rootId }: TopicDiagramProps) {
     })
 
     return getLayoutedElements(nodes, edges)
-  }, [documents, router, collapsedIds, toggleCollapse, rootId])
+  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)

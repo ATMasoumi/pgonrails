@@ -190,3 +190,55 @@ export async function markAsRead(id: string) {
   revalidatePath(`/documents/${id}`)
   return { success: true }
 }
+
+export async function togglePublic(id: string, isPublic: boolean) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  // First verify ownership of the root doc
+  const { data: doc, error: fetchError } = await supabase
+    .from('documents')
+    .select('id')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
+
+  if (fetchError || !doc) throw new Error('Unauthorized or not found')
+
+  // We need to update the doc and all its descendants
+  // Since we don't have a recursive query handy in the DB, we'll do it in two steps:
+  // 1. Fetch all user docs (inefficient but consistent with current app)
+  // 2. Find descendants
+  // 3. Update them
+  
+  const { data: allDocs } = await supabase
+    .from('documents')
+    .select('id, parent_id')
+    .eq('user_id', user.id)
+
+  if (!allDocs) throw new Error('Failed to fetch documents')
+
+  const descendants = new Set<string>([id])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const d of allDocs) {
+      if (d.parent_id && descendants.has(d.parent_id) && !descendants.has(d.id)) {
+        descendants.add(d.id)
+        changed = true
+      }
+    }
+  }
+
+  const { error } = await supabase
+    .from('documents')
+    .update({ is_public: isPublic })
+    .in('id', Array.from(descendants))
+
+  if (error) throw error
+
+  revalidatePath('/dashboard')
+  revalidatePath(`/dashboard/${id}`)
+  return { success: true }
+}

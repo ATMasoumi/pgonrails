@@ -14,6 +14,7 @@ interface TopicNodeData extends Record<string, unknown> {
   createdAt: string
   hasChildren: boolean
   isCollapsed: boolean
+  readOnly?: boolean
   onToggleCollapse: () => void
   onOpenDocument: () => void
   onDelete: (id: string) => Promise<void>
@@ -23,7 +24,7 @@ interface TopicNodeData extends Record<string, unknown> {
 type TopicNode = Node<TopicNodeData>
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, onToggleCollapse, onDelete } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete } = data
   const [loadingType, setLoadingType] = useState<'subtopic' | 'explanation' | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -82,16 +83,18 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
               {label}
             </span>
             
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={handleDelete}
-                className="text-slate-400 hover:text-red-500 transition-colors p-0.5 rounded-full hover:bg-red-50"
-                title="Delete topic"
-                disabled={isDeleting}
-              >
-                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              </button>
-            </div>
+            {!readOnly && (
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={handleDelete}
+                  className="text-slate-400 hover:text-red-500 transition-colors p-0.5 rounded-full hover:bg-red-50"
+                  title="Delete topic"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                </button>
+              </div>
+            )}
           </div>
 
 
@@ -112,46 +115,50 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                 Read
               </Button>
             ) : (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="flex-1 text-[10px] h-7 px-2 bg-white hover:bg-green-50 hover:text-green-600 hover:border-green-200"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleGenerate('explanation')
-                }}
-                disabled={!!loadingType}
-                title="Generate Document"
-              >
-                {loadingType === 'explanation' ? (
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                ) : (
-                  <FileText className="w-3 h-3 mr-1" />
-                )}
-                Gen Doc
-              </Button>
+              !readOnly && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1 text-[10px] h-7 px-2 bg-white hover:bg-green-50 hover:text-green-600 hover:border-green-200"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleGenerate('explanation')
+                  }}
+                  disabled={!!loadingType}
+                  title="Generate Document"
+                >
+                  {loadingType === 'explanation' ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <FileText className="w-3 h-3 mr-1" />
+                  )}
+                  Gen Doc
+                </Button>
+              )
             )}
           </div>
         </div>
       </div>
 
       {/* Generate Subtopics / Collapse Button (Right Side) */}
-      <div className="absolute -right-5 top-1/2 -translate-y-1/2 z-50">
-        <button
-          onClick={handleNodeClick}
-          className="bg-white rounded-full shadow-sm border border-slate-200 p-1.5 hover:border-blue-400 hover:text-blue-500 text-slate-400 transition-all hover:scale-110"
-          title={hasChildren ? (isCollapsed ? "Expand" : "Collapse") : "Generate subtopics"}
-          disabled={!!loadingType}
-        >
-          {loadingType === 'subtopic' ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (hasChildren && !isCollapsed) ? (
-            <Minus className="w-4 h-4" />
-          ) : (
-            <Plus className="w-4 h-4" />
-          )}
-        </button>
-      </div>
+      {(!readOnly || hasChildren) && (
+        <div className="absolute -right-5 top-1/2 -translate-y-1/2 z-50">
+          <button
+            onClick={handleNodeClick}
+            className="bg-white rounded-full shadow-sm border border-slate-200 p-1.5 hover:border-blue-400 hover:text-blue-500 text-slate-400 transition-all hover:scale-110"
+            title={hasChildren ? (isCollapsed ? "Expand" : "Collapse") : "Generate subtopics"}
+            disabled={!!loadingType}
+          >
+            {loadingType === 'subtopic' ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (hasChildren && !isCollapsed) ? (
+              <Minus className="w-4 h-4" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      )}
 
       <Handle
         type="source"

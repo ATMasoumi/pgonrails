@@ -14,10 +14,6 @@ export default async function DocumentPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect('/signin')
-  }
-
   const { data: document } = await supabase
     .from('documents')
     .select('*')
@@ -28,11 +24,19 @@ export default async function DocumentPage({
     notFound()
   }
 
-  if (document.user_id !== user.id) {
-    redirect('/dashboard')
+  // Check access: either owner or public
+  const isOwner = user && document.user_id === user.id
+  const isPublic = document.is_public
+
+  if (!isOwner && !isPublic) {
+    if (!user) {
+      redirect('/signin')
+    } else {
+      redirect('/dashboard')
+    }
   }
 
   console.log('Document data:', document)
 
-  return <DocumentView document={document} rootId={rootId} />
+  return <DocumentView document={document} rootId={rootId} readOnly={!isOwner} />
 }
