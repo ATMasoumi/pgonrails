@@ -84,8 +84,8 @@ export async function generateTopicContent(id: string, type: 'subtopic' | 'expla
   if (type === 'subtopic') {
     try {
       const { object } = await generateObject({
-        model: openai('gpt-4o'),
-        system: "You are a helpful assistant. Generate a comprehensive list of up to 10 subtopics for the last topic in the provided context path. The subtopics should be relevant to the specific branch of knowledge and cover the subject thoroughly.",
+        model: openai('gpt-5.1'),
+        system: "You are an expert taxonomist and curriculum designer. Generate a comprehensive, structured, and logically ordered list of up to 10 subtopics for the last topic in the provided context path. The subtopics should be relevant to the specific branch of knowledge, cover the subject thoroughly, and facilitate deep learning.",
         prompt: `Context path: ${contextString}\n\nGenerate comprehensive subtopics for: ${currentTopic}`,
         schema: z.object({
           subtopics: z.array(z.string())
@@ -112,9 +112,9 @@ export async function generateTopicContent(id: string, type: 'subtopic' | 'expla
   } else {
     try {
       const { text } = await generateText({
-        model: openai('gpt-4o'),
-        system: "You are a helpful assistant. Generate a comprehensive explanation/content for the requested topic. The content should be detailed and educational. Return plain markdown.",
-        prompt: `Context path: ${contextString}\n\nGenerate content for: ${currentTopic}`
+        model: openai('gpt-5.1'),
+        system: "You are an expert academic researcher and writer. Generate a highly comprehensive, detailed, and in-depth article about the requested topic. The content should be extensive, covering history, key concepts, theoretical foundations, practical applications, current state, future implications, and relevant examples. Use clear markdown formatting with multiple headers, lists, and code blocks where appropriate. Aim for a deep dive into the subject matter that provides significant value and insight.",
+        prompt: `Context path: ${contextString}\n\nGenerate a comprehensive article for: ${currentTopic}`
       })
 
       const { error } = await supabase
