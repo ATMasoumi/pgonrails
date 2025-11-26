@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, ArrowRight, Cog, Filter, LogOut, MoreHorizontal, Trello, UserRound } from "lucide-react"
+import { ArrowLeft, ArrowRight, Cog, Filter, LogOut, MoreHorizontal, BookOpen, UserRound } from "lucide-react"
 import { Button } from "./ui/button"
 import Link from "next/link"
 import { signout } from "@/app/auth/actions"
@@ -39,8 +39,8 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
             <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
                 <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
                     <Link prefetch={false} href="/" className="flex items-center space-x-2">
-                        <Trello className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-                        <span className="text-xl sm:text-2xl font-bold text-gray-900">Trello Clone</span>
+                        <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+                        <span className="text-xl sm:text-2xl font-bold text-gray-900">DocTree</span>
                     </Link>
                     <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                         <DropdownMenuTrigger asChild>
@@ -104,7 +104,7 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
                             </Link>
                             <div className="h-4 sm:h-6 w-px bg-gray-300 hidden sm:block" />
                             <div className="flex items-center space-x-1 sm:space-x-2 min-w-0">
-                                <Trello className="text-blue-600" />
+                                <BookOpen className="text-blue-600" />
                                 <div className="items-center space-x-1 sm:space-x-2 min-w-0">
                                     <span className="text-lg font-bold text-gray-900 truncate">
                                         {boardTitle}
@@ -154,8 +154,8 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
         <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
             <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
                 <Link prefetch={false} href="/" className="flex items-center space-x-2">
-                    <Trello className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-                    <span className="text-xl sm:text-2xl font-bold text-gray-900">Trello Clone</span>
+                    <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+                    <span className="text-xl sm:text-2xl font-bold text-gray-900">DocTree</span>
                 </Link>
                 <div className="flex items-center space-x-2 sm:space-x-4">
                     {user && (

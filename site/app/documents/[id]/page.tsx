@@ -1,12 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
-import Navbar from '@/components/Navbar'
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { DocumentView } from '@/components/DocumentView'
 
-export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function DocumentPage({ 
+  params,
+  searchParams 
+}: { 
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ rootId?: string }>
+}) {
   const { id } = await params
+  const { rootId } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -28,28 +32,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     redirect('/dashboard')
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <main className="container mx-auto py-8 px-4">
-        <div className="mb-6">
-          <Link href="/dashboard">
-            <Button variant="ghost" className="pl-0 hover:pl-0 hover:bg-transparent">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
-            </Button>
-          </Link>
-        </div>
+  console.log('Document data:', document)
 
-        <div className="bg-white rounded-lg shadow-sm border p-8">
-          <h1 className="text-2xl font-bold mb-4 border-b pb-4">{document.query}</h1>
-          <div className="prose max-w-none">
-            <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-md overflow-x-auto">
-              {document.content}
-            </pre>
-          </div>
-        </div>
-      </main>
-    </div>
-  )
+  return <DocumentView document={document} rootId={rootId} />
 }

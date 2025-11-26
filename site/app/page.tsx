@@ -2,7 +2,7 @@ import Navbar from "@/components/Navbar"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import { ArrowRight, CheckSquare, Shield, Trello, Users, Zap } from "lucide-react";
+import { ArrowRight, CheckSquare, Shield, BookOpen, Users, Zap } from "lucide-react";
 import Link from "next/link";
 
 export default async function Home() {
@@ -44,10 +44,10 @@ export default async function Home() {
             <span className="text-blue-600">finally.</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            TrelloClone helps teams move work forward. Collaborate, manage
+            DocTree helps teams move work forward. Collaborate, manage
             projects, and reach new productivity peaks. From high rises to the
             home office, the way your team works is unique—accomplish it all
-            with TrelloClone.
+            with DocTree.
           </p>
 
           {!data.user && (
@@ -106,7 +106,7 @@ export default async function Home() {
             Ready to get started?
           </h2>
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join thousands of teams who are already using TrelloClone to
+            Join thousands of teams who are already using DocTree to
             organize their work.
           </p>
 
@@ -126,11 +126,11 @@ export default async function Home() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2 mb-4 md:mb-0">
-              <Trello className="h-6 w-6 text-blue-400" />
-              <span className="text-xl font-bold">TrelloClone</span>
+              <BookOpen className="h-6 w-6 text-blue-400" />
+              <span className="text-xl font-bold">DocTree</span>
             </div>
             <div className="flex items-center space-x-6 text-sm text-gray-400">
-              <span>© 2024 TrelloClone. All rights reserved.</span>
+              <span>© 2024 DocTree. All rights reserved.</span>
               <span>Built with Next.js & PG On Rails - "Bootstrap, build and self-host Supabase, on Railway and beyond."</span>
             </div>
           </div>

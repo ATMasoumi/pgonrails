@@ -838,7 +838,7 @@ export default function BoardPage() {
                                         </p>
                                     </DialogHeader>
                                     <p className="text-sm text-gray-900">
-                                        Copy the link below and send it to anyone you want to invite to this board. They must already be a user of Trello Clone.
+                                        Copy the link below and send it to anyone you want to invite to this board. They must already be a user of DocTree.
                                     </p>
                                     <p className="text-sm text-gray-900">
                                         Your invite link is:
