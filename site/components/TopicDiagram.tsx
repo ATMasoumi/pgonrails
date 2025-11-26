@@ -161,7 +161,7 @@ export function TopicDiagram({ documents, rootId }: TopicDiagramProps) {
     })
 
     return getLayoutedElements(nodes, edges)
-  }, [documents, router, collapsedIds, toggleCollapse])
+  }, [documents, router, collapsedIds, toggleCollapse, rootId])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)

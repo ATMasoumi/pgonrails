@@ -23,7 +23,7 @@ interface TopicNodeData extends Record<string, unknown> {
 type TopicNode = Node<TopicNodeData>
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, onOpenDocument, id, rootId, hasChildren, isCollapsed, onToggleCollapse, onDelete } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, onToggleCollapse, onDelete } = data
   const [loadingType, setLoadingType] = useState<'subtopic' | 'explanation' | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 

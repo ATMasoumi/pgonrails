@@ -83,7 +83,8 @@ export function DocumentView({ document, rootId }: DocumentViewProps) {
               remarkPlugins={[remarkGfm]}
               components={{
                 pre: ({children}) => <>{children}</>,
-                code({node, inline, className, children, ...props}: any) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                code({inline, className, children, ...props}: any) {
                   const match = /language-(\w+)/.exec(className || '')
                   return !inline ? (
                     <CodeBlock

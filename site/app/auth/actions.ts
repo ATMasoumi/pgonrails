@@ -32,7 +32,7 @@ export async function resetPassword(currentState: { message: string }, formData:
 export async function forgotPassword(currentState: { message: string }, formData: FormData) {
     const supabase = await createClient()
     const email = formData.get('email') as string
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email)
+    const { error } = await supabase.auth.resetPasswordForEmail(email)
 
     if (error) {
         return { message: error.message }
@@ -109,7 +109,7 @@ export async function signIn(currentState: { message: string }, formData: FormDa
 
 export async function signout() {
     const supabase = await createClient()
-    const { error } = await supabase.auth.signOut({ scope: "local" })
+    await supabase.auth.signOut({ scope: "local" })
     // handle error?
 
     revalidatePath('/', 'layout') // ??
@@ -119,7 +119,7 @@ export async function signout() {
 
 export async function signInWithGoogle() {
     const supabase = await createClient()
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { data } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
             redirectTo: `${PUBLIC_URL}/auth/callback`,
@@ -134,7 +134,7 @@ export async function signInWithGoogle() {
 
 export async function signInWithGithub() {
     const supabase = await createClient()
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { data } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
             redirectTo: `${PUBLIC_URL}/auth/callback`,
