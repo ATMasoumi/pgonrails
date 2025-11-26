@@ -277,3 +277,4 @@ services:
       - name: basic-auth
         config:
           hide_credentials: true
+          
