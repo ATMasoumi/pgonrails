@@ -8,6 +8,59 @@ import { generateText, generateObject } from 'ai'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
+async function generateInitialTree(supabase: SupabaseClient, rootId: string, query: string, userId: string) {
+  try {
+    const { object } = await generateObject({
+      model: openai('gpt-4o'),
+      system: "You are an expert taxonomist and curriculum designer. Generate a comprehensive, structured knowledge tree for the provided topic. The tree should be 2 levels deep (Topic -> Subtopics -> Sub-subtopics). Ensure the structure is logical, covers the subject thoroughly, and facilitates deep learning.",
+      prompt: `Generate a knowledge tree for: ${query}`,
+      schema: z.object({
+        subtopics: z.array(z.object({
+          query: z.string(),
+          subtopics: z.array(z.object({
+            query: z.string()
+          })).optional()
+        }))
+      })
+    })
+
+    for (const subtopic of object.subtopics) {
+      const { data: l1Node, error: l1Error } = await supabase
+        .from('documents')
+        .insert({
+          user_id: userId,
+          query: subtopic.query,
+          parent_id: rootId,
+          content: null
+        })
+        .select()
+        .single()
+      
+      if (l1Error) {
+        console.error('Error inserting L1 node:', l1Error)
+        continue
+      }
+
+      if (subtopic.subtopics && subtopic.subtopics.length > 0) {
+        const l2Nodes = subtopic.subtopics.map(st => ({
+          user_id: userId,
+          query: st.query,
+          parent_id: l1Node.id,
+          content: null
+        }))
+        
+        const { error: l2Error } = await supabase
+          .from('documents')
+          .insert(l2Nodes)
+          
+        if (l2Error) console.error('Error inserting L2 nodes:', l2Error)
+      }
+    }
+  } catch (error) {
+    console.error('Error generating initial tree:', error)
+  }
+}
+
 export async function createTopic(query: string, parentId: string | null = null) {
   const supabase = await createClient()
   
@@ -35,6 +88,10 @@ export async function createTopic(query: string, parentId: string | null = null)
     if (error) {
       console.error('Supabase error:', error)
       throw new Error('Failed to save topic')
+    }
+
+    if (!parentId) {
+      await generateInitialTree(supabase, data.id, query, user.id)
     }
 
     return { success: true, id: data.id }

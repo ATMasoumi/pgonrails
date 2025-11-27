@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 export function AddTopicForm() {
   const [isLoading, setIsLoading] = useState(false)
@@ -32,12 +33,22 @@ export function AddTopicForm() {
 
   return (
     <form id="add-topic-form" action={handleSubmit} className="flex gap-2 w-full max-w-2xl mx-auto mb-8">
-      <Input 
-        name="query" 
-        placeholder="Enter a new topic..." 
-        required 
-        className="flex-1"
-      />
+      <div className="relative flex-1 group">
+        {isLoading && (
+          <div className="absolute -inset-0.5 rounded-lg overflow-hidden">
+            <div className="absolute inset-[-100%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
+          </div>
+        )}
+        <Input 
+          name="query" 
+          placeholder="Enter a new topic..." 
+          required 
+          className={cn(
+            "relative bg-white transition-all duration-200",
+            isLoading && "border-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+          )}
+        />
+      </div>
       <Button type="submit" disabled={isLoading}>
         {isLoading ? (
           <>
