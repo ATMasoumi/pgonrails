@@ -9,7 +9,7 @@ export default function SubmitButton({ children }) {
 
     return (
         <Button
-            className="w-full mt-6"
+            className="w-full mt-6 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white border-0"
             type="submit"
             aria-disabled={pending}
             disabled={pending}

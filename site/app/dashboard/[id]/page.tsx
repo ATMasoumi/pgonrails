@@ -52,23 +52,23 @@ export default async function TopicDetailsPage({ params }: { params: Promise<{ i
   const treeDocuments = documents.filter(d => relevantIds.has(d.id))
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+    <div className="h-screen flex flex-col bg-[#020202] overflow-hidden">
       <Navbar />
       
       {/* Header Bar */}
-      <div className="bg-white border-b px-4 py-3 shadow-sm shrink-0 z-10">
+      <div className="bg-[#020202]/80 border-b border-white/10 px-4 py-3 shadow-sm shrink-0 z-10 backdrop-blur-sm">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link 
               href="/dashboard" 
-              className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+              className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
               title="Back to Dashboard"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
             
             <div>
-              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <h1 className="text-xl font-bold text-white flex items-center gap-2">
                 {rootTopic.query}
               </h1>
               <p className="text-xs text-gray-500">
@@ -82,7 +82,7 @@ export default async function TopicDetailsPage({ params }: { params: Promise<{ i
       </div>
 
       {/* Main Content - Full Height Diagram */}
-      <main className="flex-1 relative w-full bg-slate-50">
+      <main className="flex-1 relative w-full bg-[#020202]">
          <div className="absolute inset-0">
             <TopicDiagram documents={treeDocuments} rootId={id} />
          </div>

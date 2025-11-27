@@ -1,141 +1,34 @@
-import Navbar from "@/components/Navbar"
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/server";
-import { ArrowRight, CheckSquare, Shield, BookOpen, Users, Zap } from "lucide-react";
-import Link from "next/link";
+import Hero from "@/components/landing/Hero"
+import LandingNavbar from "@/components/landing/LandingNavbar"
+import HowItWorks from "@/components/landing/HowItWorks"
+import Features from "@/components/landing/Features"
+import Architecture from "@/components/landing/Architecture"
+import ExampleTrees from "@/components/landing/ExampleTrees"
+import SocialProof from "@/components/landing/SocialProof"
+import FinalCTA from "@/components/landing/FinalCTA"
 
-export default async function Home() {
-  const supabase = await createClient()
-  const { data } = await supabase.auth.getUser()
-
-  const features = [
-    {
-      icon: CheckSquare,
-      title: "Task Management",
-      description: "Organize your tasks with intuitive drag-and-drop boards",
-    },
-    {
-      icon: Users,
-      title: "Team Collaboration",
-      description: "Work together with your team in real-time",
-    },
-    {
-      icon: Zap,
-      title: "Lightning Fast",
-      description: "Built with Next.js 15 for optimal performance",
-    },
-    {
-      icon: Shield,
-      title: "Secure",
-      description: "Enterprise-grade security with Clerk authentication",
-    },
-  ];
-
+export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <Navbar />
-
-      {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 text-center">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            Organize work and life,{" "}
-            <span className="text-blue-600">finally.</span>
-          </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            DocTree helps teams move work forward. Collaborate, manage
-            projects, and reach new productivity peaks. From high rises to the
-            home office, the way your team works is unique—accomplish it all
-            with DocTree.
-          </p>
-
-          {!data.user && (
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link prefetch={false} href="/signup">
-                <Button size="lg" className="text-lg px-8">
-                  Start for free
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
-              <Button variant="outline" size="lg" className="text-lg px-8">
-                Watch demo
-              </Button>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Everything you need to stay organized
-          </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Powerful features to help your team collaborate and get more done.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {features.map((feature, index) => (
-            <Card
-              key={index}
-              className="border-0 shadow-lg hover:shadow-xl transition-shadow"
-            >
-              <CardHeader className="text-center">
-                <div className="mx-auto w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                  <feature.icon className="h-6 w-6 text-blue-600" />
-                </div>
-                <CardTitle className="text-lg">{feature.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CardDescription className="text-center">
-                  {feature.description}
-                </CardDescription>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="bg-blue-600 py-20">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            Ready to get started?
-          </h2>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join thousands of teams who are already using DocTree to
-            organize their work.
-          </p>
-
-          {!data.user && (
-            <Link prefetch={false} href="/signup">
-              <Button size="lg" variant="secondary" className="text-lg px-8">
-                Start your free trial
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
-          )}
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-2 mb-4 md:mb-0">
-              <BookOpen className="h-6 w-6 text-blue-400" />
-              <span className="text-xl font-bold">DocTree</span>
-            </div>
-            <div className="flex items-center space-x-6 text-sm text-gray-400">
-              <span>© 2024 DocTree. All rights reserved.</span>
-              <span>Built with Next.js & PG On Rails - "Bootstrap, build and self-host Supabase, on Railway and beyond."</span>
-            </div>
-          </div>
-        </div>
-      </footer>
+    <div className="min-h-screen bg-[#020202] text-white font-sans selection:bg-purple-500/30 selection:text-purple-200">
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+        <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-purple-500 opacity-20 blur-[100px]"></div>
+      </div>
+      
+      <div className="relative z-10">
+        <LandingNavbar />
+        <Hero />
+        <HowItWorks />
+        <Features />
+        <Architecture />
+        <ExampleTrees />
+        <SocialProof />
+        <FinalCTA />
+        
+        <footer className="py-12 text-center text-gray-600 text-sm border-t border-white/10 bg-[#020202]">
+          <p>© {new Date().getFullYear()} DocTree. All rights reserved.</p>
+        </footer>
+      </div>
     </div>
   )
 }

@@ -64,15 +64,15 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt }: D
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[500px] bg-white shadow-2xl border-l z-50 flex flex-col transform transition-transform duration-300 ease-in-out">
+    <div className="fixed inset-y-0 right-0 w-[500px] bg-[#0A0A0A] shadow-2xl border-l border-white/10 z-50 flex flex-col transform transition-transform duration-300 ease-in-out">
       {/* Header */}
-      <div className="p-4 border-b flex items-center justify-between bg-gray-50">
-        <h2 className="font-semibold text-lg">Document Generator</h2>
+      <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#0A0A0A]">
+        <h2 className="font-semibold text-lg text-white">Document Generator</h2>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={handleSave} title="Save Document" disabled={isLoading || messages.length === 0}>
+          <Button variant="ghost" size="icon" onClick={handleSave} title="Save Document" disabled={isLoading || messages.length === 0} className="text-gray-400 hover:text-white hover:bg-white/10">
             <Save className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="ghost" size="icon" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">
             <X className="w-5 h-5" />
           </Button>
         </div>
@@ -84,14 +84,14 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt }: D
           <div key={m.id} className={cn("flex gap-3", m.role === 'user' ? "flex-row-reverse" : "")}>
             <div className={cn(
               "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-              m.role === 'assistant' ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600"
+              m.role === 'assistant' ? "bg-blue-500/20 text-blue-400" : "bg-white/10 text-gray-400"
             )}>
               {m.role === 'assistant' ? <Bot className="w-5 h-5" /> : <User className="w-5 h-5" />}
             </div>
             
             <div className={cn(
               "rounded-lg p-4 max-w-[85%] text-sm",
-              m.role === 'assistant' ? "bg-white border shadow-sm prose prose-sm max-w-none" : "bg-blue-600 text-white"
+              m.role === 'assistant' ? "bg-white/5 border border-white/10 shadow-sm prose prose-invert prose-sm max-w-none text-gray-200" : "bg-blue-600 text-white"
             )}>
               {m.role === 'assistant' ? (
                 <ReactMarkdown
@@ -133,13 +133,13 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt }: D
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t bg-gray-50">
+      <div className="p-4 border-t border-white/10 bg-[#0A0A0A]">
         <form onSubmit={handleSubmit} className="flex gap-2">
           <Textarea
             value={input}
             onChange={handleInputChange}
             placeholder="Ask to improve the document..."
-            className="min-h-[50px] max-h-[150px] resize-none"
+            className="min-h-[50px] max-h-[150px] resize-none bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus-visible:ring-blue-500/20 focus-visible:border-blue-500"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
@@ -147,7 +147,7 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt }: D
               }
             }}
           />
-          <Button type="submit" disabled={isLoading || !input.trim()} size="icon" className="h-[50px] w-[50px]">
+          <Button type="submit" disabled={isLoading || !input.trim()} size="icon" className="h-[50px] w-[50px] bg-blue-600 hover:bg-blue-500 text-white border-0">
             <Send className="w-5 h-5" />
           </Button>
         </form>

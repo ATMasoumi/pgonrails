@@ -72,11 +72,11 @@ export function DocumentView({ document, rootId, readOnly = false }: DocumentVie
   const shareText = `Check out this knowledge tree about ${document.query} on DocTree!`
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b px-4 py-3">
+    <div className="min-h-screen bg-[#020202] text-white">
+      <nav className="bg-[#020202]/80 border-b border-white/10 px-4 py-3 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto flex items-center justify-between">
           <Link href={rootId ? (readOnly ? `/share/${rootId}` : `/dashboard/${rootId}`) : (readOnly ? "/hall" : "/dashboard")}>
-            <Button variant="ghost" className="pl-0 hover:pl-0 hover:bg-transparent">
+            <Button variant="ghost" className="pl-0 hover:pl-0 hover:bg-transparent text-gray-400 hover:text-white transition-colors">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to {rootId ? 'Topic' : (readOnly ? 'Hall' : 'Dashboard')}
             </Button>
@@ -84,15 +84,15 @@ export function DocumentView({ document, rootId, readOnly = false }: DocumentVie
           
           <div className="flex gap-2 items-center">
             {document.is_public && (
-              <div className="flex gap-1 mr-2 border-r pr-2">
-                <Button variant="ghost" size="icon" onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank')}>
-                  <Twitter className="w-4 h-4 text-blue-400" />
+              <div className="flex gap-1 mr-2 border-r border-white/10 pr-2">
+                <Button variant="ghost" size="icon" onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank')} className="hover:bg-white/10 text-gray-400 hover:text-blue-400">
+                  <Twitter className="w-4 h-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank')}>
-                  <Linkedin className="w-4 h-4 text-blue-700" />
+                <Button variant="ghost" size="icon" onClick={() => window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank')} className="hover:bg-white/10 text-gray-400 hover:text-blue-600">
+                  <Linkedin className="w-4 h-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank')}>
-                  <Facebook className="w-4 h-4 text-blue-600" />
+                <Button variant="ghost" size="icon" onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank')} className="hover:bg-white/10 text-gray-400 hover:text-blue-500">
+                  <Facebook className="w-4 h-4" />
                 </Button>
               </div>
             )}
@@ -103,13 +103,13 @@ export function DocumentView({ document, rootId, readOnly = false }: DocumentVie
                   onClick={handleShare} 
                   disabled={isSharing} 
                   variant={document.is_public ? "secondary" : "outline"}
-                  className={document.is_public ? "text-blue-600 bg-blue-50" : ""}
+                  className={document.is_public ? "text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20" : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"}
                 >
                   <Share2 className="w-4 h-4 mr-2" />
                   {document.is_public ? "Public" : "Share"}
                 </Button>
                 {document.is_public && (
-                  <Button onClick={copyShareLink} variant="outline" size="icon" title="Copy Link">
+                  <Button onClick={copyShareLink} variant="outline" size="icon" title="Copy Link" className="bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white">
                     <Copy className="w-4 h-4" />
                   </Button>
                 )}
@@ -117,12 +117,12 @@ export function DocumentView({ document, rootId, readOnly = false }: DocumentVie
                   onClick={handleMarkAsRead} 
                   disabled={isMarking || document.is_read} 
                   variant={document.is_read ? "secondary" : "outline"}
-                  className={document.is_read ? "text-green-600 bg-green-50" : ""}
+                  className={document.is_read ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"}
                 >
                   <Check className="w-4 h-4 mr-2" />
                   {document.is_read ? "Read" : "Mark as Read"}
                 </Button>
-                <Button onClick={() => setIsChatOpen(true)} variant="outline">
+                <Button onClick={() => setIsChatOpen(true)} variant="outline" className="bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white">
                   <MessageSquare className="w-4 h-4 mr-2" />
                   Chat with AI
                 </Button>
@@ -130,7 +130,7 @@ export function DocumentView({ document, rootId, readOnly = false }: DocumentVie
             )}
             {readOnly && (
               <Link href="/">
-                <Button variant="default">
+                <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white border-0">
                   Create Your Own
                 </Button>
               </Link>
@@ -140,9 +140,9 @@ export function DocumentView({ document, rootId, readOnly = false }: DocumentVie
       </nav>
 
       <main className="container mx-auto py-8 px-4">
-        <div className="bg-white rounded-lg shadow-sm border p-8 max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold mb-6 border-b pb-4">{document.query}</h1>
-          <div className="prose prose-slate max-w-none dark:prose-invert prose-code:before:content-none prose-code:after:content-none">
+        <div className="bg-[#0A0A0A] rounded-xl border border-white/10 shadow-2xl p-8 max-w-4xl mx-auto backdrop-blur-sm">
+          <h1 className="text-3xl font-bold mb-6 border-b border-white/10 pb-4 text-white">{document.query}</h1>
+          <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-gray-300 prose-strong:text-white prose-code:text-blue-300 prose-code:bg-blue-900/20 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
             <ReactMarkdown 
               remarkPlugins={[remarkGfm]}
               components={{
@@ -156,7 +156,7 @@ export function DocumentView({ document, rootId, readOnly = false }: DocumentVie
                       value={String(children).replace(/\n$/, '')}
                     />
                   ) : (
-                    <code {...props} className={cn("bg-gray-100 rounded px-1 py-0.5 text-sm font-mono text-red-500", className)}>
+                    <code {...props} className={cn("bg-blue-900/20 text-blue-300 rounded px-1 py-0.5 text-sm font-mono", className)}>
                       {children}
                     </code>
                   )

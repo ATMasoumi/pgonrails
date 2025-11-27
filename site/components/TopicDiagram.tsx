@@ -1,15 +1,15 @@
 "use client"
 
 import { useCallback, useMemo, useState } from 'react'
-import { ReactFlow, Background, Controls, useNodesState, useEdgesState, Node, Edge } from '@xyflow/react'
+import { ReactFlow, Background, Controls, useNodesState, useEdgesState, Node, Edge, BackgroundVariant } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
 import { TopicNode } from './TopicNode'
 import { generateTopicContent, deleteTopic } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
 
-const nodeWidth = 220
-const nodeHeight = 80
+const nodeWidth = 280
+const nodeHeight = 100
 
 interface Document {
   id: string
@@ -157,7 +157,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           type: 'smoothstep',
           animated: true,
           style: { 
-            stroke: doc.is_read ? '#22c55e' : '#94a3b8',
+            stroke: doc.is_read ? '#22c55e' : '#334155',
             strokeWidth: 2 
           },
         })
@@ -180,7 +180,11 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
   const nodeTypes = useMemo(() => ({ topicNode: TopicNode }), [])
 
   return (
-    <div className="h-full w-full bg-slate-50 relative">
+    <div className="h-full w-full bg-[#020202] relative overflow-hidden">
+      {/* Ambient background effects */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_800px_at_50%_-30%,#1e1b4b,transparent)] pointer-events-none opacity-50" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_800px_at_80%_60%,#172554,transparent)] pointer-events-none opacity-30" />
+      
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -191,9 +195,16 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         minZoom={0.01}
         maxZoom={4}
         attributionPosition="bottom-right"
+        colorMode="dark"
       >
-        <Background color="#cbd5e1" gap={16} />
-        <Controls />
+        <Background 
+          color="#94a3b8" 
+          gap={24} 
+          size={1} 
+          variant={BackgroundVariant.Dots} 
+          className="opacity-10"
+        />
+        <Controls className="bg-[#0A0A0A] border-white/10 fill-white text-white" />
       </ReactFlow>
     </div>
   )

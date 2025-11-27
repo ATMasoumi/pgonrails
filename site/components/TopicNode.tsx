@@ -67,19 +67,19 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         type="target"
         position={Position.Left}
         isConnectable={isConnectable}
-        className="!bg-gray-300 !w-2 !h-2 !-ml-1 border-2 border-white z-50"
+        className="!bg-blue-500 !w-2 !h-2 !-ml-1 !border-0 z-50"
       />
       
       <div 
         className={cn(
-          "bg-white rounded-xl border shadow-sm transition-all duration-200 w-[220px] overflow-hidden hover:border-blue-400 hover:shadow-md",
+          "bg-[#0A0A0A]/90 backdrop-blur-md rounded-xl border border-white/10 shadow-lg transition-all duration-300 w-[280px] overflow-hidden hover:border-blue-500/50 hover:shadow-blue-500/10 hover:shadow-xl group-hover:scale-[1.02]",
           loadingType ? "ring-2 ring-blue-500/20 animate-pulse" : ""
         )}
       >
-        <div className="p-3 flex flex-col gap-3">
+        <div className="p-4 flex flex-col gap-3">
           {/* Header: Title + Actions */}
           <div className="flex items-start justify-between gap-2">
-            <span className="font-semibold text-sm text-gray-900 leading-snug break-words flex-1" title={label}>
+            <span className="font-semibold text-base text-gray-200 leading-snug break-words flex-1 group-hover:text-blue-400 transition-colors" title={label}>
               {label}
             </span>
             
@@ -87,7 +87,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={handleDelete}
-                  className="text-slate-400 hover:text-red-500 transition-colors p-0.5 rounded-full hover:bg-red-50"
+                  className="text-gray-500 hover:text-red-400 transition-colors p-1 rounded-full hover:bg-red-500/10"
                   title="Delete topic"
                   disabled={isDeleting}
                 >
@@ -97,29 +97,28 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
             )}
           </div>
 
-
           {/* Actions Row */}
           <div className="flex items-center gap-2">
             {content ? (
                <Button 
                 variant="default" 
                 size="sm" 
-                className="flex-1 text-[10px] h-7 px-2 bg-green-600 hover:bg-green-700"
+                className="flex-1 text-xs h-8 px-3 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 border border-emerald-500/20"
                 onClick={(e) => {
                   e.stopPropagation()
                   window.location.href = `/documents/${id}?rootId=${rootId}`
                 }}
                 title="Read Document"
               >
-                <BookOpen className="w-3 h-3 mr-1" />
-                Read
+                <BookOpen className="w-3.5 h-3.5 mr-1.5" />
+                Read Doc
               </Button>
             ) : (
               !readOnly && (
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="flex-1 text-[10px] h-7 px-2 bg-white hover:bg-green-50 hover:text-green-600 hover:border-green-200"
+                  className="flex-1 text-xs h-8 px-3 bg-white/5 border-white/10 text-gray-300 hover:bg-blue-500/10 hover:text-blue-400 hover:border-blue-500/30 transition-all"
                   onClick={(e) => {
                     e.stopPropagation()
                     handleGenerate('explanation')
@@ -128,11 +127,11 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                   title="Generate Document"
                 >
                   {loadingType === 'explanation' ? (
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                   ) : (
-                    <FileText className="w-3 h-3 mr-1" />
+                    <FileText className="w-3.5 h-3.5 mr-1.5" />
                   )}
-                  Gen Doc
+                  Generate Doc
                 </Button>
               )
             )}
@@ -145,7 +144,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         <div className="absolute -right-5 top-1/2 -translate-y-1/2 z-50">
           <button
             onClick={handleNodeClick}
-            className="bg-white rounded-full shadow-sm border border-slate-200 p-1.5 hover:border-blue-400 hover:text-blue-500 text-slate-400 transition-all hover:scale-110"
+            className="bg-[#0A0A0A] rounded-full shadow-lg border border-white/10 p-1.5 hover:border-blue-500/50 hover:text-blue-400 text-gray-400 transition-all hover:scale-110 hover:shadow-blue-500/20"
             title={hasChildren ? (isCollapsed ? "Expand" : "Collapse") : "Generate subtopics"}
             disabled={!!loadingType}
           >

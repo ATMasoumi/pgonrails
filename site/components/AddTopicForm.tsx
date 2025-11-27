@@ -1,26 +1,47 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import { createTopic } from "@/app/documents/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { motion, AnimatePresence } from "framer-motion"
 
-export function AddTopicForm() {
+const SUGGESTED_TOPICS = [
+  "Quantum Physics",
+  "Renaissance Art",
+  "Machine Learning",
+  "Sustainable Energy",
+  "Ancient Rome",
+  "Space Exploration",
+  "Cognitive Science",
+  "Music Theory"
+]
+
+interface AddTopicFormProps {
+  showSuggestions?: boolean
+}
+
+export function AddTopicForm({ showSuggestions = false }: AddTopicFormProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const [inputValue, setInputValue] = useState("")
   const router = useRouter()
 
-  async function handleSubmit(formData: FormData) {
+  const isWorking = isLoading || isPending
+
+  async function handleCreateTopic(query: string) {
     setIsLoading(true)
     try {
-      const query = formData.get('query') as string
       const result = await createTopic(query)
+      
       if (result.success) {
-        const form = document.getElementById('add-topic-form') as HTMLFormElement
-        form?.reset()
-        router.refresh()
+        setInputValue("")
+        startTransition(() => {
+          router.refresh()
+        })
       } else {
         console.error(result.error)
       }
@@ -31,37 +52,83 @@ export function AddTopicForm() {
     }
   }
 
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    await handleCreateTopic(inputValue)
+  }
+
   return (
-    <form id="add-topic-form" action={handleSubmit} className="flex gap-2 w-full max-w-2xl mx-auto mb-8">
-      <div className="relative flex-1 group">
-        {isLoading && (
-          <div className="absolute -inset-0.5 rounded-lg overflow-hidden">
-            <div className="absolute inset-[-100%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-          </div>
-        )}
-        <Input 
-          name="query" 
-          placeholder="Enter a new topic..." 
-          required 
-          className={cn(
-            "relative bg-white transition-all duration-200",
-            isLoading && "border-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+    <div className="w-full max-w-2xl mx-auto mb-8 relative z-10">
+      <form id="add-topic-form" onSubmit={onSubmit} className="flex gap-3 w-full">
+        <div className="relative flex-1 group">
+          {isWorking && (
+            <>
+              {/* Animated Gradient Border */}
+              <div className="absolute -inset-[2px] rounded-full overflow-hidden z-0 pointer-events-none">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] aspect-square animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,transparent_0%,#22d3ee_25%,#4ade80_50%,#facc15_75%,transparent_100%)] blur-[2px] opacity-80" />
+              </div>
+              
+              {/* Loading Text Overlay */}
+              <div className="absolute inset-0 flex items-center justify-center z-20 text-white font-medium pointer-events-none">
+                 <Sparkles className="w-4 h-4 mr-2 animate-pulse text-yellow-400" />
+                 <span className="animate-pulse bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">Generating Topic...</span>
+              </div>
+            </>
           )}
-        />
-      </div>
-      <Button type="submit" disabled={isLoading}>
-        {isLoading ? (
-          <>
+          
+          <Input 
+            name="query" 
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Enter a new topic..." 
+            required 
+            disabled={isWorking}
+            className={cn(
+              "relative z-10 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus-visible:ring-blue-500/20 focus-visible:border-blue-500 transition-all duration-200 h-11 rounded-full px-6",
+              isWorking && "!bg-[#020202] !border-transparent focus-visible:ring-0 focus-visible:ring-offset-0 opacity-100 disabled:opacity-100 shadow-none text-transparent placeholder:text-transparent selection:text-transparent cursor-not-allowed"
+            )}
+          />
+        </div>
+        <Button 
+          type="submit" 
+          disabled={isWorking}
+          className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white border-0 h-11 px-6 rounded-full relative z-10"
+        >
+          {isWorking ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Adding...
-          </>
-        ) : (
-          <>
+          ) : (
             <Plus className="mr-2 h-4 w-4" />
-            Add Topic
-          </>
+          )}
+          Add Topic
+        </Button>
+      </form>
+
+      <AnimatePresence>
+        {showSuggestions && !isWorking && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mt-6 flex flex-wrap justify-center gap-2"
+          >
+            {SUGGESTED_TOPICS.map((topic, index) => (
+              <motion.button
+                key={topic}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: index * 0.05 }}
+                onClick={() => {
+                  setInputValue(topic)
+                  handleCreateTopic(topic)
+                }}
+                className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm text-gray-400 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all hover:scale-105"
+              >
+                {topic}
+              </motion.button>
+            ))}
+          </motion.div>
         )}
-      </Button>
-    </form>
+      </AnimatePresence>
+    </div>
   )
 }

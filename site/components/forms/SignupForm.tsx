@@ -11,41 +11,42 @@ export default function SignupForm() {
     })
 
     return (
-        <form action={formAction}>
+        <form action={formAction} className="space-y-4">
             <div className="grid gap-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name" className="text-gray-300">Name</Label>
                 <Input
                     id="name"
                     type="text"
                     placeholder="John Doe"
                     name="name"
                     required
+                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus-visible:ring-blue-500/20 focus-visible:border-blue-500"
                 />
             </div>
-            <div className="grid gap-2 mt-2">
-                <Label htmlFor="email">Email</Label>
+            <div className="grid gap-2">
+                <Label htmlFor="email" className="text-gray-300">Email</Label>
                 <Input
                     id="email"
                     type="email"
                     placeholder="m@example.com"
                     name="email"
                     required
+                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus-visible:ring-blue-500/20 focus-visible:border-blue-500"
                 />
             </div>
-            <div className="grid gap-2 mt-2">
-                <Label htmlFor="password">Password</Label>
+            <div className="grid gap-2">
+                <Label htmlFor="password" className="text-gray-300">Password</Label>
                 <Input
                     id="password"
                     type="password"
                     name="password"
                     required
+                    className="bg-white/5 border-white/10 text-white focus-visible:ring-blue-500/20 focus-visible:border-blue-500"
                 />
             </div>
-            <SubmitButton>
-                Sign up
-            </SubmitButton>
+            <SubmitButton>Sign up</SubmitButton>
             {formState?.message && (
-                <p className="text-sm text-red-500 text-center py-2">{formState.message}</p>
+                <p className="text-sm text-red-400 text-center bg-red-900/20 p-2 rounded border border-red-900/50">{formState.message}</p>
             )}
         </form>
     )
