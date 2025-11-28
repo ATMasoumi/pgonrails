@@ -20,30 +20,23 @@ export function PodcastPlayer() {
 
   const [isDragging, setIsDragging] = useState(false)
 
-  // Handle progress updates with requestAnimationFrame for smoothness
+  // Handle progress updates from audio element
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
-    let rafId: number
-
-    const updateProgress = () => {
+    const handleTimeUpdate = () => {
       if (!isDragging) {
         setProgress(audio.currentTime)
       }
-      if (isPlaying) {
-        rafId = requestAnimationFrame(updateProgress)
-      }
     }
 
-    if (isPlaying) {
-      rafId = requestAnimationFrame(updateProgress)
-    }
+    audio.addEventListener('timeupdate', handleTimeUpdate)
 
     return () => {
-      if (rafId) cancelAnimationFrame(rafId)
+      audio.removeEventListener('timeupdate', handleTimeUpdate)
     }
-  }, [isPlaying, isDragging, audioRef])
+  }, [isDragging, audioRef])
 
   // Handle audio events
   useEffect(() => {
@@ -83,6 +76,12 @@ export function PodcastPlayer() {
     }
   }, [isPlaying, currentUrl, audioRef])
 
+  // Reset progress when URL changes
+  useEffect(() => {
+    setProgress(0)
+    setDuration(0)
+  }, [currentUrl])
+
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.playbackRate = playbackRate
@@ -112,13 +111,16 @@ export function PodcastPlayer() {
     const time = value[0]
     if (audioRef.current) {
       audioRef.current.currentTime = time
+      setProgress(time)
     }
-    setIsDragging(false)
+    setTimeout(() => setIsDragging(false), 100)
   }
 
   const handleSkip = (seconds: number) => {
-    if (audioRef.current && duration > 0) {
-      const newTime = Math.min(Math.max(audioRef.current.currentTime + seconds, 0), duration)
+    if (audioRef.current) {
+      const currentTime = audioRef.current.currentTime
+      const maxTime = duration > 0 ? duration : audioRef.current.duration
+      const newTime = Math.min(Math.max(currentTime + seconds, 0), maxTime)
       audioRef.current.currentTime = newTime
       setProgress(newTime)
     }
@@ -272,7 +274,7 @@ export function PodcastPlayer() {
                   step={0.1}
                   onValueChange={handleSeek}
                   onValueCommit={handleSeekCommit}
-                  className="cursor-pointer"
+                  className="cursor-pointer [&_[role=slider]]:bg-white [&_[role=slider]]:border-white/20 [&_[role=slider]]:h-3 [&_[role=slider]]:w-3 [&_[role=slider]]:shadow-lg hover:[&_[role=slider]]:scale-110 [&_[role=slider]]:transition-transform"
                 />
                 <div className="flex justify-between text-[10px] text-gray-400 font-mono px-0.5">
                   <span>{formatTime(progress)}</span>

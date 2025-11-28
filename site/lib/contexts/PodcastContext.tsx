@@ -10,7 +10,7 @@ interface PodcastContextType {
   currentTitle: string | null
   togglePlayPause: () => void
   setIsPlaying: (playing: boolean) => void
-  audioRef: React.RefObject<HTMLAudioElement | null>
+  audioRef: React.RefObject<HTMLAudioElement>
 }
 
 const PodcastContext = createContext<PodcastContextType | undefined>(undefined)
@@ -19,7 +19,7 @@ export function PodcastProvider({ children }: { children: React.ReactNode }) {
   const [currentUrl, setCurrentUrl] = useState<string | null>(null)
   const [currentTitle, setCurrentTitle] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const audioRef = useRef<HTMLAudioElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null as any)
 
   const playPodcast = (url: string, title: string) => {
     if (currentUrl === url) {
