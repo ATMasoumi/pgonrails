@@ -5,9 +5,11 @@ import { Handle, Position, NodeProps, Node } from '@xyflow/react'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square, Play, Pause } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { generateQuiz, getLatestQuiz, generatePodcast, getPodcast } from '@/app/documents/actions'
+import { generateQuiz, getLatestQuiz, generatePodcast, getPodcast, generateFlashcards } from '@/app/documents/actions'
 import { QuizModal, QuizQuestion } from '@/components/QuizModal'
+import { FlashcardModal } from '@/components/FlashcardModal'
 import { usePodcast } from '@/lib/contexts/PodcastContext'
+import { toast } from 'sonner'
 
 interface TopicNodeData extends Record<string, unknown> {
   id: string
@@ -35,6 +37,11 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
   const [quizId, setQuizId] = useState<string | null>(null)
   const [existingAnswers, setExistingAnswers] = useState<number[] | undefined>(undefined)
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false)
+
+  // Flashcard state
+  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false)
+  const [flashcards, setFlashcards] = useState<{front: string, back: string}[]>([])
+  const [isFlashcardModalOpen, setIsFlashcardModalOpen] = useState(false)
 
   // Podcast state
   const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false)
@@ -99,13 +106,17 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
 
   const handleQuizClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!content || isGeneratingQuiz) return
+    if (!content) return
 
-    setIsGeneratingQuiz(true)
+    // If we already have questions, just open the modal
+    if (quizQuestions.length > 0) {
+      setIsQuizOpen(true)
+      return
+    }
+
+    // Check for existing quiz
     try {
-      // First check for existing quiz
       const existing = await getLatestQuiz(id)
-      
       if (existing && existing.quiz) {
         setQuizQuestions(existing.quiz.questions)
         setQuizId(existing.quiz.id)
@@ -115,14 +126,34 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
           setExistingAnswers(undefined)
         }
         setIsQuizOpen(true)
-      } else {
-        // No existing quiz, generate new one
-        await generateNewQuiz()
+        return
       }
     } catch (error) {
-      console.error('Error fetching/generating quiz:', error)
+      console.error('Error checking for existing quiz:', error)
+    }
+
+    // Generate new quiz if none exists
+    generateNewQuiz()
+  }
+
+  const handleFlashcardClick = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!content || isGeneratingFlashcards) return
+
+    setIsGeneratingFlashcards(true)
+    try {
+      const result = await generateFlashcards(id, content)
+      if (result.success && result.flashcards) {
+        setFlashcards(result.flashcards.cards)
+        setIsFlashcardModalOpen(true)
+      } else {
+        toast.error(result.error || 'Failed to generate flashcards')
+      }
+    } catch (error) {
+      console.error('Error generating flashcards:', error)
+      toast.error('An error occurred while generating flashcards')
     } finally {
-      setIsGeneratingQuiz(false)
+      setIsGeneratingFlashcards(false)
     }
   }
 
@@ -176,6 +207,11 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         quizId={quizId}
         existingAnswers={existingAnswers}
         onGenerateNew={generateNewQuiz}
+      />
+      <FlashcardModal
+        isOpen={isFlashcardModalOpen}
+        onClose={() => setIsFlashcardModalOpen(false)}
+        cards={flashcards}
       />
       <Handle
         type="target"
@@ -253,10 +289,21 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                 <StickyNote className="w-3 h-3 text-yellow-400" />
                 <span className="text-[10px] font-medium text-yellow-400">Note</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">
-                <Layers className="w-3 h-3 text-blue-400" />
+              <button 
+                onClick={handleFlashcardClick}
+                disabled={isGeneratingFlashcards}
+                className={cn(
+                  "flex items-center gap-1.5 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-pointer",
+                  isGeneratingFlashcards && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {isGeneratingFlashcards ? (
+                  <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
+                ) : (
+                  <Layers className="w-3 h-3 text-blue-400" />
+                )}
                 <span className="text-[10px] font-medium text-blue-400">Flashcard</span>
-              </div>
+              </button>
             </div>
           )}
 

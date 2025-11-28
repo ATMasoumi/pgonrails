@@ -476,3 +476,64 @@ export async function getPodcast(documentId: string) {
   if (error) return null
   return data
 }
+
+export async function generateFlashcards(documentId: string, content: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) throw new Error('Unauthorized')
+
+  // Check if flashcards already exist
+  const { data: existing } = await supabase
+    .from('flashcards')
+    .select('*')
+    .eq('document_id', documentId)
+    .limit(1)
+
+  if (existing && existing.length > 0) {
+    return { success: true, flashcards: existing[0] }
+  }
+
+  try {
+    const { object } = await generateObject({
+      model: openai('gpt-4o'),
+      system: "You are an expert educator. Create a set of flashcards to help a student learn the key concepts from the provided text. Each flashcard should have a 'front' (question or term) and a 'back' (answer or definition).",
+      prompt: `Create 5-10 flashcards for the following content: ${content}`,
+      schema: z.object({
+        cards: z.array(z.object({
+          front: z.string(),
+          back: z.string()
+        }))
+      })
+    })
+
+    const { data, error } = await supabase
+      .from('flashcards')
+      .insert({
+        document_id: documentId,
+        user_id: user.id,
+        cards: object.cards
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return { success: true, flashcards: data }
+  } catch (error) {
+    console.error('Error generating flashcards:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to generate flashcards' }
+  }
+}
+
+export async function getFlashcards(documentId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('flashcards')
+    .select('*')
+    .eq('document_id', documentId)
+    .single()
+
+  if (error) return null
+  return data
+}

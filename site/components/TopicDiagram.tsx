@@ -11,6 +11,8 @@ import { useRouter } from 'next/navigation'
 const nodeWidth = 280
 const nodeHeight = 100
 
+const nodeTypes = { topicNode: TopicNode }
+
 interface Document {
   id: string
   query: string
@@ -176,8 +178,6 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
      setNodes(layoutedNodes)
      setEdges(layoutedEdges)
   }, [initialNodes, initialEdges, setNodes, setEdges])
-
-  const nodeTypes = useMemo(() => ({ topicNode: TopicNode }), [])
 
   return (
     <div className="h-full w-full bg-[#020202] relative overflow-hidden">
