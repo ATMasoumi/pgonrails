@@ -7,6 +7,7 @@ import dagre from 'dagre'
 import { TopicNode } from './TopicNode'
 import { NoteSidePanel } from './NoteSidePanel'
 import { ResourcesSidePanel } from './ResourcesSidePanel'
+import { SummarySidePanel } from './SummarySidePanel'
 import { ResourceData } from './ResourcesModal'
 import { generateTopicContent, deleteTopic } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
@@ -29,6 +30,7 @@ interface Document {
   flashcards?: { id: string }[]
   resources?: { id: string }[]
   note?: string | null
+  summary?: string | null
 }
 
 const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
@@ -92,6 +94,18 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     resources: null
   })
 
+  const [summaryPanelState, setSummaryPanelState] = useState<{
+    isOpen: boolean
+    title: string
+    summary: string | null
+    documentId: string
+  }>({
+    isOpen: false,
+    title: '',
+    summary: null,
+    documentId: ''
+  })
+
   const handleOpenNote = useCallback((id: string) => {
     const doc = documents.find(d => d.id === id)
     if (doc) {
@@ -109,6 +123,15 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
       isOpen: true,
       title,
       resources
+    })
+  }, [])
+
+  const handleOpenSummary = useCallback((title: string, summary: string, documentId: string) => {
+    setSummaryPanelState({
+      isOpen: true,
+      title,
+      summary,
+      documentId
     })
   }, [])
 
@@ -176,9 +199,11 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           hasFlashcards: doc.flashcards && doc.flashcards.length > 0,
           hasResources: doc.resources && doc.resources.length > 0,
           hasNote: !!doc.note && doc.note.trim().length > 0 && doc.note !== '<p></p>',
+          hasSummary: !!doc.summary,
           readOnly,
           onOpenNote: handleOpenNote,
           onOpenResources: handleOpenResources,
+          onOpenSummary: (title: string, summary: string) => handleOpenSummary(title, summary, doc.id),
           onToggleCollapse: () => toggleCollapse(doc.id),
           onDelete: async (id: string) => {
             if (readOnly) return
@@ -223,7 +248,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     })
 
     return getLayoutedElements(nodes, edges)
-  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenResources])
+  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenResources, handleOpenSummary])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -276,6 +301,14 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         onClose={() => setResourcesPanelState(prev => ({ ...prev, isOpen: false }))}
         title={resourcesPanelState.title}
         resources={resourcesPanelState.resources}
+      />
+
+      <SummarySidePanel
+        isOpen={summaryPanelState.isOpen}
+        onClose={() => setSummaryPanelState(prev => ({ ...prev, isOpen: false }))}
+        title={summaryPanelState.title}
+        summary={summaryPanelState.summary}
+        documentId={summaryPanelState.documentId}
       />
     </div>
   )

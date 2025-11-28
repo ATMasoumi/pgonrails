@@ -1,11 +1,11 @@
 "use client"
 
-import { memo, useState } from 'react'
+import { memo, useState, useEffect } from 'react'
 import { Handle, Position, NodeProps, Node } from '@xyflow/react'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square, Library } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { generateQuiz, getLatestQuiz, generatePodcast, getPodcast, generateFlashcards, generateResources } from '@/app/documents/actions'
+import { generateQuiz, getLatestQuiz, generatePodcast, getPodcast, generateFlashcards, generateResources, generateSummary } from '@/app/documents/actions'
 import { QuizModal, QuizQuestion } from '@/components/QuizModal'
 import { FlashcardModal } from '@/components/FlashcardModal'
 import { ResourceData } from '@/components/ResourcesModal'
@@ -26,10 +26,12 @@ interface TopicNodeData extends Record<string, unknown> {
   hasFlashcards?: boolean
   hasResources?: boolean
   hasNote?: boolean
+  hasSummary?: boolean
   onToggleCollapse: () => void
   onOpenDocument: () => void
   onOpenNote: (id: string) => void
   onOpenResources: (title: string, resources: ResourceData) => void
+  onOpenSummary: (title: string, summary: string) => void
   onDelete: (id: string) => Promise<void>
   onGenerate: (id: string, type: 'subtopic' | 'explanation') => Promise<void>
 }
@@ -37,7 +39,7 @@ interface TopicNodeData extends Record<string, unknown> {
 type TopicNode = Node<TopicNodeData>
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, onOpenNote, onOpenResources } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, onOpenNote, onOpenResources, onOpenSummary } = data
   const [loadingType, setLoadingType] = useState<'subtopic' | 'explanation' | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isQuizOpen, setIsQuizOpen] = useState(false)
@@ -55,12 +57,48 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
   const [isGeneratingResources, setIsGeneratingResources] = useState(false)
   const [resources, setResources] = useState<ResourceData | null>(null)
 
+  // Summary state
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
+  const [summary, setSummary] = useState<string | null>(null)
+
+  // Sync local summary state with prop
+  useEffect(() => {
+    if (!hasSummary) {
+      setSummary(null)
+    }
+  }, [hasSummary])
+
   // Podcast state
   const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false)
   const [podcastUrl, setPodcastUrl] = useState<string | null>(null)
   const { playPodcast, currentUrl, isPlaying, togglePlayPause } = usePodcast()
   
   const isThisPodcastPlaying = isPlaying && currentUrl === podcastUrl
+
+  const handleSummaryClick = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    
+    if (summary) {
+      onOpenSummary(label, summary)
+      return
+    }
+
+    setIsGeneratingSummary(true)
+    try {
+      const result = await generateSummary(id)
+      if (result.success && result.summary) {
+        setSummary(result.summary)
+        onOpenSummary(label, result.summary)
+      } else {
+        toast.error(result.error || 'Failed to generate summary')
+      }
+    } catch (error) {
+      console.error(error)
+      toast.error('Failed to generate summary')
+    } finally {
+      setIsGeneratingSummary(false)
+    }
+  }
 
   const handleGenerate = async (type: 'subtopic' | 'explanation') => {
     if (loadingType) return
@@ -376,6 +414,23 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                   <Library className="w-3 h-3" />
                 )}
                 <span className="text-[10px] font-medium">Resources</span>
+              </button>
+              <button 
+                onClick={handleSummaryClick}
+                disabled={isGeneratingSummary}
+                className={cn(
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
+                  "bg-teal-500/5 border-teal-500/10 text-teal-400/50 hover:text-teal-400 hover:bg-teal-500/10 hover:border-teal-500/20",
+                  isGeneratingSummary && "opacity-50 cursor-not-allowed",
+                  (hasSummary || summary) && "border-teal-500/50 bg-teal-500/10 text-teal-400 opacity-100"
+                )}
+              >
+                {isGeneratingSummary ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <FileText className="w-3 h-3" />
+                )}
+                <span className="text-[10px] font-medium">Summary</span>
               </button>
             </div>
           )}

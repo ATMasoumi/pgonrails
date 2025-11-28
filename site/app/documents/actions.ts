@@ -692,3 +692,68 @@ export async function getResources(documentId: string) {
   if (error) return null
   return data
 }
+
+export async function generateSummary(documentId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  // Fetch document content
+  const { data: document } = await supabase
+    .from('documents')
+    .select('content, summary')
+    .eq('id', documentId)
+    .single()
+
+  if (!document) throw new Error('Document not found')
+  if (document.summary) return { success: true, summary: document.summary }
+
+  if (!document.content) return { success: false, error: 'No content to summarize' }
+
+  try {
+    const { text } = await generateText({
+      model: openai('gpt-4o'),
+      system: "You are an expert summarizer. Create a concise but comprehensive summary of the provided text in HTML format. Use appropriate tags like <p>, <ul>, <li>, <strong>, <h3> etc. Do not include <html>, <head>, or <body> tags, just the content body. Do NOT wrap the output in markdown code blocks (like ```html). Return raw HTML only.",
+      prompt: `Summarize the following content:\n\n${document.content}`,
+    })
+
+    // Clean up any potential markdown code blocks
+    const cleanText = text.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '')
+
+    // Save summary
+    const { error } = await supabase
+      .from('documents')
+      .update({ summary: cleanText })
+      .eq('id', documentId)
+
+    if (error) throw error
+
+    revalidatePath('/dashboard/[id]')
+    return { success: true, summary: cleanText }
+  } catch (error) {
+    console.error('Error generating summary:', error)
+    return { success: false, error: 'Failed to generate summary' }
+  }
+}
+
+export async function deleteSummary(documentId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  try {
+    const { error } = await supabase
+      .from('documents')
+      .update({ summary: null })
+      .eq('id', documentId)
+      .eq('user_id', user.id)
+
+    if (error) throw error
+
+    revalidatePath('/dashboard/[id]')
+    return { success: true }
+  } catch (error) {
+    console.error('Error deleting summary:', error)
+    return { success: false, error: 'Failed to delete summary' }
+  }
+}
