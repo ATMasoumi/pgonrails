@@ -20,7 +20,7 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 
 const ImageThumbnail = ({ src, onClick, onDelete }: { src: string, onClick: () => void, onDelete?: () => void }) => {
@@ -127,10 +127,6 @@ const ImageGalleryComponent = ({ node, deleteNode, updateAttributes }: any) => {
     }
   }
   
-  if (images.length === 0) {
-    return null
-  }
-
   const handleDeleteImage = (indexToDelete: number) => {
     const newImages = images.filter((_, i) => i !== indexToDelete)
     if (newImages.length === 0) {
@@ -140,17 +136,21 @@ const ImageGalleryComponent = ({ node, deleteNode, updateAttributes }: any) => {
     }
   }
 
-  const handleNext = (e?: React.MouseEvent) => {
+  const handleNext = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation()
-    if (selectedIndex === null) return
-    setSelectedIndex((selectedIndex + 1) % images.length)
-  }
+    setSelectedIndex(prev => {
+      if (prev === null) return null
+      return (prev + 1) % images.length
+    })
+  }, [images.length])
 
-  const handlePrev = (e?: React.MouseEvent) => {
+  const handlePrev = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation()
-    if (selectedIndex === null) return
-    setSelectedIndex((selectedIndex - 1 + images.length) % images.length)
-  }
+    setSelectedIndex(prev => {
+      if (prev === null) return null
+      return (prev - 1 + images.length) % images.length
+    })
+  }, [images.length])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -161,8 +161,12 @@ const ImageGalleryComponent = ({ node, deleteNode, updateAttributes }: any) => {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedIndex, images.length])
+  }, [selectedIndex, handleNext, handlePrev])
   
+  if (images.length === 0) {
+    return null
+  }
+
   return (
     <NodeViewWrapper className="block w-full my-4">
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -406,7 +410,7 @@ const ImageGalleryExtension = Node.create({
         tag: 'div[data-image-gallery]',
         getAttrs: (element) => {
           const el = element as HTMLElement
-          let imagesStr = el.getAttribute('data-images')
+          const imagesStr = el.getAttribute('data-images')
           console.log('Parsing gallery, raw data-images:', imagesStr)
           
           // Fallback: try to get from 'images' attribute if data-images fails
