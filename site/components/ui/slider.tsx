@@ -27,7 +27,7 @@ const Slider = React.forwardRef<
     >
       <SliderPrimitive.Range 
         className={cn(
-          "absolute bg-primary transition-all",
+          "absolute bg-primary",
           orientation === "horizontal" ? "h-full" : "w-full"
         )} 
       />

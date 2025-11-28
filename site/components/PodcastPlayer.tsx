@@ -20,10 +20,21 @@ export function PodcastPlayer() {
 
   const [isDragging, setIsDragging] = useState(false)
 
-  // Handle progress updates from audio element
+  // Handle progress updates with smooth RAF
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
+
+    let rafId: number
+
+    const updateProgress = () => {
+      if (!isDragging && audio.currentTime !== undefined) {
+        setProgress(audio.currentTime)
+      }
+      if (isPlaying) {
+        rafId = requestAnimationFrame(updateProgress)
+      }
+    }
 
     const handleTimeUpdate = () => {
       if (!isDragging) {
@@ -31,20 +42,48 @@ export function PodcastPlayer() {
       }
     }
 
+    if (isPlaying) {
+      rafId = requestAnimationFrame(updateProgress)
+    }
+
     audio.addEventListener('timeupdate', handleTimeUpdate)
 
     return () => {
+      if (rafId) cancelAnimationFrame(rafId)
       audio.removeEventListener('timeupdate', handleTimeUpdate)
     }
-  }, [isDragging, audioRef])
+  }, [isDragging, isPlaying, audioRef])
 
-  // Handle audio events
+  // Handle audio events and duration
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
+    const updateDuration = () => {
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+        setDuration(audio.duration)
+        console.log('Duration updated:', audio.duration)
+      }
+    }
+
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration || 0)
+      console.log('Metadata loaded, duration:', audio.duration)
+      updateDuration()
+    }
+
+    const handleLoadedData = () => {
+      console.log('Data loaded, duration:', audio.duration)
+      updateDuration()
+    }
+
+    const handleCanPlay = () => {
+      console.log('Can play, duration:', audio.duration)
+      updateDuration()
+    }
+
+    const handleDurationChange = () => {
+      console.log('Duration changed:', audio.duration)
+      updateDuration()
     }
 
     const handleEnded = () => {
@@ -53,18 +92,22 @@ export function PodcastPlayer() {
     }
 
     // Initial duration check
-    if (audio.duration) {
-      setDuration(audio.duration)
-    }
+    updateDuration()
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata)
+    audio.addEventListener('loadeddata', handleLoadedData)
+    audio.addEventListener('canplay', handleCanPlay)
+    audio.addEventListener('durationchange', handleDurationChange)
     audio.addEventListener('ended', handleEnded)
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+      audio.removeEventListener('loadeddata', handleLoadedData)
+      audio.removeEventListener('canplay', handleCanPlay)
+      audio.removeEventListener('durationchange', handleDurationChange)
       audio.removeEventListener('ended', handleEnded)
     }
-  }, [audioRef, setIsPlaying])
+  }, [audioRef, setIsPlaying, currentUrl])
 
   useEffect(() => {
     if (audioRef.current) {
@@ -79,7 +122,6 @@ export function PodcastPlayer() {
   // Reset progress when URL changes
   useEffect(() => {
     setProgress(0)
-    setDuration(0)
   }, [currentUrl])
 
   useEffect(() => {
@@ -96,7 +138,7 @@ export function PodcastPlayer() {
   }, [volume, audioRef])
 
   const formatTime = (time: number) => {
-    if (isNaN(time)) return "0:00"
+    if (isNaN(time) || time === 0 || !isFinite(time)) return "0:00"
     const minutes = Math.floor(time / 60)
     const seconds = Math.floor(time % 60)
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
@@ -113,7 +155,7 @@ export function PodcastPlayer() {
       audioRef.current.currentTime = time
       setProgress(time)
     }
-    setTimeout(() => setIsDragging(false), 100)
+    setIsDragging(false)
   }
 
   const handleSkip = (seconds: number) => {
@@ -204,15 +246,15 @@ export function PodcastPlayer() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-gray-300 hover:text-white hover:bg-white/5 rounded-full"
+                className="h-9 w-9 text-white hover:bg-white/10 rounded-full transition-all hover:scale-110"
                 onClick={(e) => { e.stopPropagation(); togglePlayPause(); }}
               >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-gray-300 hover:text-white hover:bg-white/5 rounded-full"
+                className="h-9 w-9 text-gray-300 hover:text-white hover:bg-white/10 rounded-full transition-all hover:scale-110"
                 onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }}
               >
                 <ChevronUp className="w-4 h-4" />
@@ -220,7 +262,7 @@ export function PodcastPlayer() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-gray-300 hover:text-white hover:bg-white/5 rounded-full"
+                className="h-9 w-9 text-gray-300 hover:text-red-400 hover:bg-red-500/20 rounded-full transition-all hover:scale-110"
                 onClick={(e) => { e.stopPropagation(); stopPodcast(); }}
               >
                 <X className="w-4 h-4" />
@@ -250,7 +292,8 @@ export function PodcastPlayer() {
                   variant="ghost" 
                   size="icon"
                   onClick={() => setIsMinimized(true)}
-                  className="text-gray-400 hover:text-white h-8 w-8"
+                  className="text-gray-300 hover:text-white hover:bg-white/10 h-9 w-9 rounded-full transition-all hover:scale-110"
+                  title="Minimize"
                 >
                   <ChevronDown className="w-4 h-4" />
                 </Button>
@@ -258,7 +301,8 @@ export function PodcastPlayer() {
                   variant="ghost" 
                   size="icon"
                   onClick={stopPodcast}
-                  className="text-gray-400 hover:text-white h-8 w-8"
+                  className="text-gray-300 hover:text-red-400 hover:bg-red-500/20 h-9 w-9 rounded-full transition-all hover:scale-110"
+                  title="Close"
                 >
                   <X className="w-4 h-4" />
                 </Button>
@@ -274,11 +318,11 @@ export function PodcastPlayer() {
                   step={0.1}
                   onValueChange={handleSeek}
                   onValueCommit={handleSeekCommit}
-                  className="cursor-pointer [&_[role=slider]]:bg-white [&_[role=slider]]:border-white/20 [&_[role=slider]]:h-3 [&_[role=slider]]:w-3 [&_[role=slider]]:shadow-lg hover:[&_[role=slider]]:scale-110 [&_[role=slider]]:transition-transform"
+                  className="cursor-pointer group [&>span:first-child]:h-2 [&>span:first-child]:bg-white/10 [&>span>span]:bg-gradient-to-r [&>span>span]:from-white [&>span>span]:to-gray-300 [&_[role=slider]]:bg-white [&_[role=slider]]:border-none [&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[role=slider]]:shadow-xl [&_[role=slider]]:shadow-white/20 [&_[role=slider]]:opacity-0 group-hover:[&_[role=slider]]:opacity-100 [&_[role=slider]]:transition-all hover:[&_[role=slider]]:scale-125 active:[&_[role=slider]]:opacity-100 active:[&_[role=slider]]:scale-110"
                 />
-                <div className="flex justify-between text-[10px] text-gray-400 font-mono px-0.5">
-                  <span>{formatTime(progress)}</span>
-                  <span>{formatTime(duration)}</span>
+                <div className="flex justify-between items-center px-0.5">
+                  <span className="text-xs text-white font-medium font-mono">{formatTime(progress)}</span>
+                  <span className="text-xs text-gray-500 font-mono">{formatTime(duration)}</span>
                 </div>
               </div>
 
