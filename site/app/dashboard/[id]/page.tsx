@@ -19,7 +19,7 @@ export default async function TopicDetailsPage({ params }: { params: Promise<{ i
   // In a production app with many docs, we'd want a recursive query here
   const { data: documents } = await supabase
     .from('documents')
-    .select('*')
+    .select('*, quizzes(id), podcasts(id), flashcards(id)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
     .order('id', { ascending: true })

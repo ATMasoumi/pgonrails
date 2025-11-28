@@ -20,6 +20,9 @@ interface TopicNodeData extends Record<string, unknown> {
   hasChildren: boolean
   isCollapsed: boolean
   readOnly?: boolean
+  hasQuiz?: boolean
+  hasPodcast?: boolean
+  hasFlashcards?: boolean
   onToggleCollapse: () => void
   onOpenDocument: () => void
   onDelete: (id: string) => Promise<void>
@@ -29,7 +32,7 @@ interface TopicNodeData extends Record<string, unknown> {
 type TopicNode = Node<TopicNodeData>
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards } = data
   const [loadingType, setLoadingType] = useState<'subtopic' | 'explanation' | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isQuizOpen, setIsQuizOpen] = useState(false)
@@ -229,7 +232,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         <div className="p-4 flex flex-col gap-3">
           {/* Header: Title + Actions */}
           <div className="flex items-start justify-between gap-2">
-            <span className="font-semibold text-base text-gray-200 leading-snug break-words flex-1 group-hover:text-blue-400 transition-colors" title={label}>
+            <span className="font-semibold text-base text-gray-400 leading-snug break-words flex-1 group-hover:text-blue-400 transition-colors" title={label}>
               {label}
             </span>
             
@@ -254,55 +257,66 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                 onClick={handleQuizClick}
                 disabled={isGeneratingQuiz}
                 className={cn(
-                  "flex items-center gap-1.5 bg-purple-500/10 px-2 py-1 rounded-md border border-purple-500/20 hover:bg-purple-500/20 transition-colors cursor-pointer",
-                  isGeneratingQuiz && "opacity-50 cursor-not-allowed"
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
+                  "bg-purple-500/5 border-purple-500/10 text-purple-400/50 hover:text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/20",
+                  isGeneratingQuiz && "opacity-50 cursor-not-allowed",
+                  (hasQuiz || quizQuestions.length > 0) && "border-purple-500/50 bg-purple-500/10 text-purple-400 opacity-100"
                 )}
               >
                 {isGeneratingQuiz ? (
-                  <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin" />
                 ) : (
-                  <Brain className="w-3 h-3 text-purple-400" />
+                  <Brain className="w-3 h-3" />
                 )}
-                <span className="text-[10px] font-medium text-purple-400">Quiz</span>
+                <span className="text-[10px] font-medium">Quiz</span>
               </button>
               <button 
                 onClick={handlePodcastClick}
                 disabled={isGeneratingPodcast}
                 className={cn(
-                  "flex items-center gap-1.5 bg-orange-500/10 px-2 py-1 rounded-md border border-orange-500/20 hover:bg-orange-500/20 transition-colors cursor-pointer",
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
+                  "bg-orange-500/5 border-orange-500/10 text-orange-400/50 hover:text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/20",
                   isGeneratingPodcast && "opacity-50 cursor-not-allowed",
-                  isThisPodcastPlaying && "bg-orange-500/30 border-orange-500/50 animate-pulse"
+                  isThisPodcastPlaying && "bg-orange-500/30 border-orange-500/50 animate-pulse text-orange-400 opacity-100",
+                  (hasPodcast || podcastUrl) && !isThisPodcastPlaying && "border-orange-500/50 bg-orange-500/10 text-orange-400 opacity-100"
                 )}
               >
                 {isGeneratingPodcast ? (
-                  <Loader2 className="w-3 h-3 text-orange-400 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin" />
                 ) : isThisPodcastPlaying ? (
-                  <Square className="w-3 h-3 text-orange-400 fill-current" />
+                  <Square className="w-3 h-3 fill-current" />
                 ) : (
-                  <Headphones className="w-3 h-3 text-orange-400" />
+                  <Headphones className="w-3 h-3" />
                 )}
-                <span className="text-[10px] font-medium text-orange-400">
+                <span className="text-[10px] font-medium">
                   {isThisPodcastPlaying ? "Stop" : "Podcast"}
                 </span>
               </button>
-              <div className="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-1 rounded-md border border-yellow-500/20">
-                <StickyNote className="w-3 h-3 text-yellow-400" />
-                <span className="text-[10px] font-medium text-yellow-400">Note</span>
-              </div>
+              <button 
+                className={cn(
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-not-allowed",
+                  "bg-yellow-500/5 border-yellow-500/10 text-yellow-400/50 hover:text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/20"
+                )}
+              >
+                <StickyNote className="w-3 h-3" />
+                <span className="text-[10px] font-medium">Note</span>
+              </button>
               <button 
                 onClick={handleFlashcardClick}
                 disabled={isGeneratingFlashcards}
                 className={cn(
-                  "flex items-center gap-1.5 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-pointer",
-                  isGeneratingFlashcards && "opacity-50 cursor-not-allowed"
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
+                  "bg-blue-500/5 border-blue-500/10 text-blue-400/50 hover:text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/20",
+                  isGeneratingFlashcards && "opacity-50 cursor-not-allowed",
+                  (hasFlashcards || flashcards.length > 0) && "border-blue-500/50 bg-blue-500/10 text-blue-400 opacity-100"
                 )}
               >
                 {isGeneratingFlashcards ? (
-                  <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin" />
                 ) : (
-                  <Layers className="w-3 h-3 text-blue-400" />
+                  <Layers className="w-3 h-3" />
                 )}
-                <span className="text-[10px] font-medium text-blue-400">Flashcard</span>
+                <span className="text-[10px] font-medium">Flashcard</span>
               </button>
             </div>
           )}

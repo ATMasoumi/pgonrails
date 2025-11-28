@@ -21,6 +21,9 @@ interface Document {
   parent_id: string | null
   user_id: string
   is_read?: boolean
+  quizzes?: { id: string }[]
+  podcasts?: { id: string }[]
+  flashcards?: { id: string }[]
 }
 
 const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
@@ -122,6 +125,9 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           createdAt: doc.created_at,
           hasChildren: hasChildren(doc.id),
           isCollapsed: collapsedIds.has(doc.id),
+          hasQuiz: doc.quizzes && doc.quizzes.length > 0,
+          hasPodcast: doc.podcasts && doc.podcasts.length > 0,
+          hasFlashcards: doc.flashcards && doc.flashcards.length > 0,
           readOnly,
           onToggleCollapse: () => toggleCollapse(doc.id),
           onDelete: async (id: string) => {
