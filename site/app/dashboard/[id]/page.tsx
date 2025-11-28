@@ -17,15 +17,20 @@ export default async function TopicDetailsPage({ params }: { params: Promise<{ i
 
   // Fetch all documents for the user to build the tree
   // In a production app with many docs, we'd want a recursive query here
-  const { data: documents } = await supabase
+  const { data: documents, error } = await supabase
     .from('documents')
-    .select('*, quizzes(id), podcasts(id), flashcards(id)')
+    .select('*, quizzes(id), podcasts(id), flashcards(id), resources(id)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
     .order('id', { ascending: true })
 
+  if (error) {
+    console.error('Error fetching documents:', error)
+    return <div className="text-white p-4">Error loading topic: {error.message}</div>
+  }
+
   if (!documents) {
-    return <div>Topic not found</div>
+    return <div className="text-white p-4">Topic not found</div>
   }
 
   // Find the specific root topic to verify it exists and get its title

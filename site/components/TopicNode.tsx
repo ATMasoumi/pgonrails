@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { generateQuiz, getLatestQuiz, generatePodcast, getPodcast, generateFlashcards, generateResources } from '@/app/documents/actions'
 import { QuizModal, QuizQuestion } from '@/components/QuizModal'
 import { FlashcardModal } from '@/components/FlashcardModal'
-import { ResourcesModal, ResourceData } from '@/components/ResourcesModal'
+import { ResourceData } from '@/components/ResourcesModal'
 import { usePodcast } from '@/lib/contexts/PodcastContext'
 import { toast } from 'sonner'
 
@@ -24,10 +24,12 @@ interface TopicNodeData extends Record<string, unknown> {
   hasQuiz?: boolean
   hasPodcast?: boolean
   hasFlashcards?: boolean
+  hasResources?: boolean
   hasNote?: boolean
   onToggleCollapse: () => void
   onOpenDocument: () => void
   onOpenNote: (id: string) => void
+  onOpenResources: (title: string, resources: ResourceData) => void
   onDelete: (id: string) => Promise<void>
   onGenerate: (id: string, type: 'subtopic' | 'explanation') => Promise<void>
 }
@@ -35,7 +37,7 @@ interface TopicNodeData extends Record<string, unknown> {
 type TopicNode = Node<TopicNodeData>
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasNote, onOpenNote } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, onOpenNote, onOpenResources } = data
   const [loadingType, setLoadingType] = useState<'subtopic' | 'explanation' | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isQuizOpen, setIsQuizOpen] = useState(false)
@@ -52,7 +54,6 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
   // Resources state
   const [isGeneratingResources, setIsGeneratingResources] = useState(false)
   const [resources, setResources] = useState<ResourceData | null>(null)
-  const [isResourcesModalOpen, setIsResourcesModalOpen] = useState(false)
 
   // Podcast state
   const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false)
@@ -170,16 +171,19 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
 
   const handleResourcesClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!content) return
+    if (!content || isGeneratingResources) return
 
-    setIsResourcesModalOpen(true)
-    if (resources) return // Already loaded
+    if (resources) {
+      onOpenResources(label, resources)
+      return
+    }
 
     setIsGeneratingResources(true)
     try {
-      const result = await generateResources(label, content)
+      const result = await generateResources(id, label, content)
       if (result.success && result.resources) {
         setResources(result.resources)
+        onOpenResources(label, result.resources)
       } else {
         toast.error(result.error || 'Failed to generate resources')
       }
@@ -246,12 +250,6 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         isOpen={isFlashcardModalOpen}
         onClose={() => setIsFlashcardModalOpen(false)}
         cards={flashcards}
-      />
-      <ResourcesModal
-        isOpen={isResourcesModalOpen}
-        onClose={() => setIsResourcesModalOpen(false)}
-        resources={resources}
-        isLoading={isGeneratingResources}
       />
       <Handle
         type="target"
@@ -364,13 +362,19 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
               </button>
               <button 
                 onClick={handleResourcesClick}
+                disabled={isGeneratingResources}
                 className={cn(
                   "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
                   "bg-pink-500/5 border-pink-500/10 text-pink-400/50 hover:text-pink-400 hover:bg-pink-500/10 hover:border-pink-500/20",
-                  resources && "border-pink-500/50 bg-pink-500/10 text-pink-400 opacity-100"
+                  isGeneratingResources && "opacity-50 cursor-not-allowed",
+                  (hasResources || resources) && "border-pink-500/50 bg-pink-500/10 text-pink-400 opacity-100"
                 )}
               >
-                <Library className="w-3 h-3" />
+                {isGeneratingResources ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Library className="w-3 h-3" />
+                )}
                 <span className="text-[10px] font-medium">Resources</span>
               </button>
             </div>

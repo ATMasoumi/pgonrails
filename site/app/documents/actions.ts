@@ -584,7 +584,23 @@ export async function updateNote(id: string, note: string) {
   revalidatePath(`/boards/${id}`)
 }
 
-export async function generateResources(topic: string, content: string | null) {
+export async function generateResources(documentId: string, topic: string, content: string | null) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) throw new Error('Unauthorized')
+
+  // Check if resources already exist
+  const { data: existing } = await supabase
+    .from('resources')
+    .select('*')
+    .eq('document_id', documentId)
+    .limit(1)
+
+  if (existing && existing.length > 0) {
+    return { success: true, resources: existing[0].data }
+  }
+
   try {
     let searchContext = '';
     try {
@@ -648,9 +664,31 @@ export async function generateResources(topic: string, content: string | null) {
       })
     })
 
+    const { error } = await supabase
+      .from('resources')
+      .insert({
+        document_id: documentId,
+        user_id: user.id,
+        data: object
+      })
+
+    if (error) throw error
+
     return { success: true, resources: object }
   } catch (error) {
     console.error('Error generating resources:', error)
     return { success: false, error: 'Failed to generate resources' }
   }
+}
+
+export async function getResources(documentId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('resources')
+    .select('*')
+    .eq('document_id', documentId)
+    .single()
+
+  if (error) return null
+  return data
 }

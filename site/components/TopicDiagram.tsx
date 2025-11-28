@@ -6,6 +6,8 @@ import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
 import { TopicNode } from './TopicNode'
 import { NoteSidePanel } from './NoteSidePanel'
+import { ResourcesSidePanel } from './ResourcesSidePanel'
+import { ResourceData } from './ResourcesModal'
 import { generateTopicContent, deleteTopic } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
 
@@ -25,6 +27,7 @@ interface Document {
   quizzes?: { id: string }[]
   podcasts?: { id: string }[]
   flashcards?: { id: string }[]
+  resources?: { id: string }[]
   note?: string | null
 }
 
@@ -79,6 +82,16 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     title: ''
   })
 
+  const [resourcesPanelState, setResourcesPanelState] = useState<{
+    isOpen: boolean
+    title: string
+    resources: ResourceData | null
+  }>({
+    isOpen: false,
+    title: '',
+    resources: null
+  })
+
   const handleOpenNote = useCallback((id: string) => {
     const doc = documents.find(d => d.id === id)
     if (doc) {
@@ -90,6 +103,14 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
       })
     }
   }, [documents])
+
+  const handleOpenResources = useCallback((title: string, resources: ResourceData) => {
+    setResourcesPanelState({
+      isOpen: true,
+      title,
+      resources
+    })
+  }, [])
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsedIds(prev => {
@@ -153,9 +174,11 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           hasQuiz: doc.quizzes && doc.quizzes.length > 0,
           hasPodcast: doc.podcasts && doc.podcasts.length > 0,
           hasFlashcards: doc.flashcards && doc.flashcards.length > 0,
+          hasResources: doc.resources && doc.resources.length > 0,
           hasNote: !!doc.note && doc.note.trim().length > 0 && doc.note !== '<p></p>',
           readOnly,
           onOpenNote: handleOpenNote,
+          onOpenResources: handleOpenResources,
           onToggleCollapse: () => toggleCollapse(doc.id),
           onDelete: async (id: string) => {
             if (readOnly) return
@@ -200,7 +223,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     })
 
     return getLayoutedElements(nodes, edges)
-  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote])
+  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenResources])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -246,6 +269,13 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         documentId={notePanelState.documentId}
         initialNote={notePanelState.initialNote}
         title={notePanelState.title}
+      />
+
+      <ResourcesSidePanel
+        isOpen={resourcesPanelState.isOpen}
+        onClose={() => setResourcesPanelState(prev => ({ ...prev, isOpen: false }))}
+        title={resourcesPanelState.title}
+        resources={resourcesPanelState.resources}
       />
     </div>
   )
