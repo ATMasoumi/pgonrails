@@ -19,7 +19,7 @@ export function PodcastProvider({ children }: { children: React.ReactNode }) {
   const [currentUrl, setCurrentUrl] = useState<string | null>(null)
   const [currentTitle, setCurrentTitle] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const audioRef = useRef<HTMLAudioElement>(null as any)
+  const audioRef = useRef<HTMLAudioElement>(null!)
 
   const playPodcast = (url: string, title: string) => {
     if (currentUrl === url) {
