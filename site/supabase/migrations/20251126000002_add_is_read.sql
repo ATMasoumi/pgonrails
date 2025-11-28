@@ -1,2 +1,2 @@
 alter table public.documents 
-add column is_read boolean not null default false;
+add column if not exists is_read boolean not null default false;

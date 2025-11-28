@@ -3,6 +3,8 @@ import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppContextProvider } from "@/lib/contexts/appContext";
+import { PodcastProvider } from "@/lib/contexts/PodcastContext";
+import { PodcastPlayer } from "@/components/PodcastPlayer";
 import UrlToast from "@/components/UrlToast";
 import UrlAuthSync from "@/components/UrlAuthSync";
 import { Toaster } from "@/components/ui/sonner";
@@ -32,12 +34,15 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AppContextProvider>
-          {children}
-          <Suspense>
-            <UrlToast />
-            <UrlAuthSync />
-            <Toaster />
-          </Suspense>
+          <PodcastProvider>
+            {children}
+            <PodcastPlayer />
+            <Suspense>
+              <UrlToast />
+              <UrlAuthSync />
+              <Toaster />
+            </Suspense>
+          </PodcastProvider>
         </AppContextProvider>
       </body>
     </html>

@@ -7,6 +7,11 @@ import { openai } from '@ai-sdk/openai'
 import { generateText, generateObject } from 'ai'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import OpenAI from 'openai'
+
+const openaiClient = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 async function generateInitialTree(supabase: SupabaseClient, rootId: string, query: string, userId: string) {
   try {
@@ -298,4 +303,176 @@ export async function togglePublic(id: string, isPublic: boolean) {
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/${id}`)
   return { success: true }
+}
+
+export async function generateQuiz(documentId: string, content: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  try {
+    const { object } = await generateObject({
+      model: openai('gpt-4o'),
+      system: "You are an expert educator. Generate a quiz based on the provided content. The quiz should test the user's understanding of the key concepts. Provide 5 multiple-choice questions.",
+      prompt: `Content: ${content}\n\nGenerate a quiz.`,
+      schema: z.object({
+        questions: z.array(z.object({
+          question: z.string(),
+          options: z.array(z.string()),
+          correctAnswer: z.number().describe("Index of the correct answer (0-3)"),
+          explanation: z.string().describe("Explanation of why the answer is correct")
+        }))
+      })
+    })
+
+    const { data: quizData, error: quizError } = await supabase
+      .from('quizzes')
+      .insert({
+        document_id: documentId,
+        user_id: user.id,
+        questions: object.questions
+      })
+      .select()
+      .single()
+
+    if (quizError) throw quizError
+
+    return { success: true, quiz: object, quizId: quizData.id }
+  } catch (error) {
+    console.error('Error generating quiz:', error)
+    return { success: false, error: 'Failed to generate quiz' }
+  }
+}
+
+export async function saveQuizAttempt(quizId: string, score: number, totalQuestions: number, answers: number[]) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  try {
+    const { error } = await supabase
+      .from('quiz_attempts')
+      .insert({
+        quiz_id: quizId,
+        user_id: user.id,
+        score,
+        total_questions: totalQuestions,
+        answers
+      })
+
+    if (error) throw error
+    return { success: true }
+  } catch (error) {
+    console.error('Error saving quiz attempt:', error)
+    return { success: false, error: 'Failed to save quiz attempt' }
+  }
+}
+
+export async function getLatestQuiz(documentId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: quiz } = await supabase
+    .from('quizzes')
+    .select('*')
+    .eq('document_id', documentId)
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (!quiz) return null
+
+  const { data: attempt } = await supabase
+    .from('quiz_attempts')
+    .select('*')
+    .eq('quiz_id', quiz.id)
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  return { quiz, attempt }
+}
+
+export async function generatePodcast(documentId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  // Fetch document content
+  const { data: document, error: docError } = await supabase
+    .from('documents')
+    .select('content, query')
+    .eq('id', documentId)
+    .single()
+
+  if (docError || !document || !document.content) {
+    throw new Error('Document not found or has no content')
+  }
+
+  // Generate audio
+  const mp3 = await openaiClient.audio.speech.create({
+    model: "tts-1",
+    voice: "alloy",
+    input: document.content.substring(0, 4096), // OpenAI limit is 4096 chars
+  })
+
+  const buffer = Buffer.from(await mp3.arrayBuffer())
+
+  // Upload to storage
+  const fileName = `${user.id}/${documentId}-${Date.now()}.mp3`
+  const { error: uploadError } = await supabase
+    .storage
+    .from('podcasts')
+    .upload(fileName, buffer, {
+      contentType: 'audio/mpeg',
+      upsert: true
+    })
+
+  if (uploadError) {
+    console.error('Upload error:', uploadError)
+    throw new Error('Failed to upload audio')
+  }
+
+  // Get public URL
+  const { data: { publicUrl } } = supabase
+    .storage
+    .from('podcasts')
+    .getPublicUrl(fileName)
+
+  // Save to database
+  const { error: dbError } = await supabase
+    .from('podcasts')
+    .insert({
+      document_id: documentId,
+      user_id: user.id,
+      audio_url: publicUrl
+    })
+
+  if (dbError) {
+    console.error('DB error:', dbError)
+    throw new Error('Failed to save podcast record')
+  }
+
+  return publicUrl
+}
+
+export async function getPodcast(documentId: string) {
+  const supabase = await createClient()
+  
+  const { data, error } = await supabase
+    .from('podcasts')
+    .select('*')
+    .eq('document_id', documentId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (error) return null
+  return data
 }
