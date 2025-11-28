@@ -160,3 +160,80 @@
     transform: translateY(0);
   }
 }
+
+/* Tiptap Task List */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  flex: none;
+  user-select: none;
+  margin-right: 0;
+  margin-top: 0.2rem;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Custom Checkbox */
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  appearance: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.25rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: all 200ms;
+  position: relative;
+  display: grid;
+  place-content: center;
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:hover {
+  border-color: rgba(59, 130, 246, 0.5); /* blue-500/50 */
+  background-color: rgba(59, 130, 246, 0.1); /* blue-500/10 */
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background-color: rgb(37, 99, 235); /* blue-600 */
+  border-color: rgb(37, 99, 235);
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]::before {
+  content: "";
+  width: 0.75em;
+  height: 0.75em;
+  transform: scale(0);
+  transition: 120ms transform ease-in-out;
+  box-shadow: inset 1em 1em white;
+  transform-origin: center;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+
+/* Checked Text Style */
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: rgb(107, 114, 128); /* gray-500 */
+  text-decoration-color: rgba(107, 114, 128, 0.5);
+}

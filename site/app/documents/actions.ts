@@ -537,3 +537,48 @@ export async function getFlashcards(documentId: string) {
   if (error) return null
   return data
 }
+
+export async function updateNote(id: string, note: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  const { error } = await supabase
+    .from('documents')
+    .update({ note })
+    .eq('id', id)
+    .eq('user_id', user.id)
+
+  if (error) {
+    console.error('Error updating note:', error)
+    throw new Error('Failed to update note')
+  }
+
+  // Find root to revalidate
+  let currentId = id
+  let rootId = id
+  
+  // Simple loop to find root (max depth is small usually)
+  let depth = 0
+  while (depth < 10) {
+    const { data: doc } = await supabase
+      .from('documents')
+      .select('parent_id')
+      .eq('id', currentId)
+      .single()
+      
+    if (!doc || !doc.parent_id) {
+      rootId = currentId
+      break
+    }
+    currentId = doc.parent_id
+    depth++
+  }
+
+  revalidatePath('/documents')
+  revalidatePath(`/dashboard/${rootId}`)
+  revalidatePath(`/boards/${id}`)
+}

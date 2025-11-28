@@ -23,8 +23,10 @@ interface TopicNodeData extends Record<string, unknown> {
   hasQuiz?: boolean
   hasPodcast?: boolean
   hasFlashcards?: boolean
+  hasNote?: boolean
   onToggleCollapse: () => void
   onOpenDocument: () => void
+  onOpenNote: (id: string) => void
   onDelete: (id: string) => Promise<void>
   onGenerate: (id: string, type: 'subtopic' | 'explanation') => Promise<void>
 }
@@ -32,7 +34,7 @@ interface TopicNodeData extends Record<string, unknown> {
 type TopicNode = Node<TopicNodeData>
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasNote, onOpenNote } = data
   const [loadingType, setLoadingType] = useState<'subtopic' | 'explanation' | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isQuizOpen, setIsQuizOpen] = useState(false)
@@ -292,15 +294,22 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                   {isThisPodcastPlaying ? "Stop" : "Podcast"}
                 </span>
               </button>
+              {!readOnly && (
               <button 
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpenNote?.(id)
+                }}
                 className={cn(
-                  "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-not-allowed",
-                  "bg-yellow-500/5 border-yellow-500/10 text-yellow-400/50 hover:text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/20"
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
+                  "bg-yellow-500/5 border-yellow-500/10 text-yellow-400/50 hover:text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500/20",
+                  hasNote && "border-yellow-500/50 bg-yellow-500/10 text-yellow-400 opacity-100"
                 )}
               >
                 <StickyNote className="w-3 h-3" />
                 <span className="text-[10px] font-medium">Note</span>
               </button>
+              )}
               <button 
                 onClick={handleFlashcardClick}
                 disabled={isGeneratingFlashcards}

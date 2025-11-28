@@ -1,10 +1,11 @@
 "use client"
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
 import { ReactFlow, Background, Controls, useNodesState, useEdgesState, Node, Edge, BackgroundVariant } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
 import { TopicNode } from './TopicNode'
+import { NoteSidePanel } from './NoteSidePanel'
 import { generateTopicContent, deleteTopic } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
 
@@ -24,6 +25,7 @@ interface Document {
   quizzes?: { id: string }[]
   podcasts?: { id: string }[]
   flashcards?: { id: string }[]
+  note?: string | null
 }
 
 const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
@@ -65,6 +67,29 @@ interface TopicDiagramProps {
 export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagramProps) {
   const router = useRouter()
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
+  const [notePanelState, setNotePanelState] = useState<{
+    isOpen: boolean
+    documentId: string
+    initialNote: string | null
+    title: string
+  }>({
+    isOpen: false,
+    documentId: '',
+    initialNote: '',
+    title: ''
+  })
+
+  const handleOpenNote = useCallback((id: string) => {
+    const doc = documents.find(d => d.id === id)
+    if (doc) {
+      setNotePanelState({
+        isOpen: true,
+        documentId: id,
+        initialNote: doc.note || '',
+        title: doc.query
+      })
+    }
+  }, [documents])
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsedIds(prev => {
@@ -128,7 +153,9 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           hasQuiz: doc.quizzes && doc.quizzes.length > 0,
           hasPodcast: doc.podcasts && doc.podcasts.length > 0,
           hasFlashcards: doc.flashcards && doc.flashcards.length > 0,
+          hasNote: !!doc.note && doc.note.trim().length > 0 && doc.note !== '<p></p>',
           readOnly,
+          onOpenNote: handleOpenNote,
           onToggleCollapse: () => toggleCollapse(doc.id),
           onDelete: async (id: string) => {
             if (readOnly) return
@@ -179,7 +206,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
   // Update nodes when documents change (e.g. after refresh) or collapsed state changes
-  useMemo(() => {
+  useEffect(() => {
      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(initialNodes, initialEdges)
      setNodes(layoutedNodes)
      setEdges(layoutedEdges)
@@ -212,6 +239,14 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         />
         <Controls className="bg-[#0A0A0A] border-white/10 fill-white text-white" />
       </ReactFlow>
+
+      <NoteSidePanel
+        isOpen={notePanelState.isOpen}
+        onClose={() => setNotePanelState(prev => ({ ...prev, isOpen: false }))}
+        documentId={notePanelState.documentId}
+        initialNote={notePanelState.initialNote}
+        title={notePanelState.title}
+      />
     </div>
   )
 }
