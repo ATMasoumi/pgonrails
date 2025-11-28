@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import Stripe from 'stripe';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 const relevantEvents = new Set([
   'checkout.session.completed',
@@ -19,9 +20,10 @@ export async function POST(req: NextRequest) {
   try {
     if (!sig || !webhookSecret) return new NextResponse('Webhook secret not found.', { status: 400 });
     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-  } catch (err: any) {
-    console.log(`❌ Error message: ${err.message}`);
-    return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.log(`❌ Error message: ${errorMessage}`);
+    return new NextResponse(`Webhook Error: ${errorMessage}`, { status: 400 });
   }
 
   if (relevantEvents.has(event.type)) {
@@ -36,7 +38,6 @@ export async function POST(req: NextRequest) {
           await manageSubscriptionStatusChange(
             subscription.id,
             subscription.customer as string,
-            event.type === 'customer.subscription.created',
             supabaseAdmin
           );
           break;
@@ -47,7 +48,6 @@ export async function POST(req: NextRequest) {
             await manageSubscriptionStatusChange(
               subscriptionId as string,
               checkoutSession.customer as string,
-              true,
               supabaseAdmin
             );
           }
@@ -66,8 +66,7 @@ export async function POST(req: NextRequest) {
 async function manageSubscriptionStatusChange(
   subscriptionId: string,
   customerId: string,
-  createAction: boolean = false,
-  supabaseAdmin: any
+  supabaseAdmin: SupabaseClient
 ) {
   // Get customer's UUID from mapping table.
   const { data: customerData } = await supabaseAdmin
@@ -82,7 +81,7 @@ async function manageSubscriptionStatusChange(
 
   const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
     expand: ['default_payment_method'],
-  });
+  }) as Stripe.Subscription;
 
   // Upsert the latest status of the subscription object.
   const subscriptionData = {
@@ -95,7 +94,9 @@ async function manageSubscriptionStatusChange(
     cancel_at_period_end: subscription.cancel_at_period_end,
     cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null,
     canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     current_period_start: new Date((subscription as any).current_period_start * 1000).toISOString(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
     created: new Date(subscription.created * 1000).toISOString(),
     ended_at: subscription.ended_at ? new Date(subscription.ended_at * 1000).toISOString() : null,

@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Check, X } from 'lucide-react';
+import { Check } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import { stripe } from '@/lib/stripe/server';
 import CheckoutButton from '@/components/pricing/CheckoutButton';
