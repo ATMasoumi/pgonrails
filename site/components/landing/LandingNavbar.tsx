@@ -6,9 +6,11 @@ import { BookOpen, ArrowRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
 import { useAppContext } from "@/lib/contexts/appContext"
+import { useSubscription } from "@/lib/contexts/SubscriptionContext"
 
 export default function LandingNavbar() {
-  const { user, subscription, isLoadingSubscription } = useAppContext()
+  const { user } = useAppContext()
+  const { isPro, isLoading } = useSubscription()
 
   return (
     <motion.nav 
@@ -32,7 +34,7 @@ export default function LandingNavbar() {
       <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-400">
         <Link href="#product" className="hover:text-white transition-colors">Product</Link>
         <Link href="#features" className="hover:text-white transition-colors">Features</Link>
-        {!subscription && !isLoadingSubscription && (
+        {!isPro && !isLoading && (
           <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
         )}
         <Link href="#resources" className="hover:text-white transition-colors">Resources</Link>

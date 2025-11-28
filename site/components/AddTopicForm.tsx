@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { createTopic } from "@/app/documents/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Loader2, Plus, Sparkles } from "lucide-react"
+import { Loader2, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
@@ -96,9 +96,7 @@ export function AddTopicForm({ showSuggestions = false }: AddTopicFormProps) {
         >
           {isWorking ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Plus className="mr-2 h-4 w-4" />
-          )}
+          ) : null}
           Add Topic
         </Button>
       </form>

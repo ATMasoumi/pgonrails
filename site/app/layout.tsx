@@ -4,10 +4,13 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppContextProvider } from "@/lib/contexts/appContext";
 import { PodcastProvider } from "@/lib/contexts/PodcastContext";
+import { SubscriptionProvider } from "@/lib/contexts/SubscriptionContext";
 import { PodcastPlayer } from "@/components/PodcastPlayer";
 import UrlToast from "@/components/UrlToast";
 import UrlAuthSync from "@/components/UrlAuthSync";
 import { Toaster } from "@/components/ui/sonner";
+import { DebugPanel } from "@/components/DebugPanel";
+import { getUserSubscriptionStatus } from "@/lib/subscription";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,24 +28,29 @@ export const metadata: Metadata = {
   description: "Interactive Knowledge Trees",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { isPro, userId, user } = await getUserSubscriptionStatus();
+
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AppContextProvider>
-          <PodcastProvider>
-            {children}
-            <PodcastPlayer />
-            <Suspense>
-              <UrlToast />
-              <UrlAuthSync />
-              <Toaster />
-            </Suspense>
-          </PodcastProvider>
+        <AppContextProvider initialUser={user}>
+          <SubscriptionProvider initialIsPro={isPro} initialUserId={userId}>
+            <PodcastProvider>
+              {children}
+              <PodcastPlayer />
+              <DebugPanel />
+              <Suspense>
+                <UrlToast />
+                <UrlAuthSync />
+                <Toaster />
+              </Suspense>
+            </PodcastProvider>
+          </SubscriptionProvider>
         </AppContextProvider>
       </body>
     </html>

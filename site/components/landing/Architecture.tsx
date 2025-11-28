@@ -237,17 +237,17 @@ export default function Architecture() {
               key={i}
               className="absolute w-1 h-1 bg-purple-500 rounded-full"
               style={{
-                top: `${Math.random() * 100}%`,
-                left: `${Math.random() * 100}%`,
+                top: `${(i * 17) % 100}%`,
+                left: `${(i * 37) % 100}%`,
               }}
               animate={{
                 y: [0, -20, 0],
                 opacity: [0, 1, 0],
               }}
               transition={{
-                duration: 3 + Math.random() * 2,
+                duration: 3 + (i % 2),
                 repeat: Infinity,
-                delay: Math.random() * 2,
+                delay: i * 0.5,
               }}
             />
           ))}

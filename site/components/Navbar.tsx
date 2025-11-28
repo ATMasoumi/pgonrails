@@ -5,6 +5,7 @@ import { Button } from "./ui/button"
 import Link from "next/link"
 import { signout } from "@/app/auth/actions"
 import { useAppContext } from "@/lib/contexts/appContext"
+import { useSubscription } from "@/lib/contexts/SubscriptionContext"
 import { usePathname, useRouter } from "next/navigation"
 import { Badge } from "./ui/badge"
 import {
@@ -26,7 +27,8 @@ type Props = {
 }
 
 export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterCount }: Props) {
-    const { user, subscription, isLoadingSubscription } = useAppContext()
+    const { user } = useAppContext()
+    const { isPro, isLoading } = useSubscription()
     const pathname = usePathname()
     const router = useRouter()
 
@@ -43,11 +45,17 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
                         <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
                         <span className="text-xl sm:text-2xl font-bold text-white">DocTree</span>
                     </Link>
-                    <div className="flex-1 flex justify-end mr-4">
-                        {!subscription && !isLoadingSubscription && (
-                            <Link prefetch={false} href="/pricing" className="text-sm font-medium text-gray-300 hover:text-white">
-                                Pricing
-                            </Link>
+                    <div className="flex-1 flex justify-end mr-4 items-center gap-4">
+                        {isPro ? (
+                            <Badge variant="secondary" className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black border-0 font-bold">
+                                PRO
+                            </Badge>
+                        ) : (
+                            !isLoading && (
+                                <Link prefetch={false} href="/pricing" className="text-sm font-medium text-gray-300 hover:text-white">
+                                    Pricing
+                                </Link>
+                            )
                         )}
                     </div>
                     <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
@@ -166,7 +174,7 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
                     <span className={`text-xl sm:text-2xl font-bold ${isPricing ? "text-white" : "text-gray-900"}`}>DocTree</span>
                 </Link>
                 <div className="flex items-center space-x-2 sm:space-x-4">
-                    {!subscription && (
+                    {!isPro && !isLoading && (
                         <Link prefetch={false} href="/pricing" className={`text-sm font-medium mr-4 ${isPricing ? "text-gray-300 hover:text-white" : "text-gray-700 hover:text-gray-900"}`}>
                             Pricing
                         </Link>

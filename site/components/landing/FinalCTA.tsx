@@ -32,17 +32,17 @@ export default function FinalCTA() {
               key={i}
               className="absolute w-2 h-2 bg-white/20 rounded-full"
               style={{
-                top: `${Math.random() * 100}%`,
-                left: `${Math.random() * 100}%`,
+                top: `${(i * 23) % 100}%`,
+                left: `${(i * 41) % 100}%`,
               }}
               animate={{
                 y: [0, -20, 0],
                 opacity: [0, 1, 0],
               }}
               transition={{
-                duration: 3 + Math.random() * 2,
+                duration: 3 + (i % 2),
                 repeat: Infinity,
-                delay: Math.random() * 2,
+                delay: i * 0.5,
               }}
             />
           ))}

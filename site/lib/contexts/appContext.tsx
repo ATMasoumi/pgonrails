@@ -1,7 +1,7 @@
 "use client"
 
-import { PropsWithChildren, createContext, useContext, useEffect } from "react"
-import { AuthError, SupabaseClient, User } from "@supabase/supabase-js"
+import { createContext, useContext, useEffect } from "react"
+import { AuthError, SupabaseClient, User, RealtimeChannel } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase/client"
 import { MergeStateFunction, useMergeState } from "../hooks/useMergeState";
 import { toast } from "sonner";
@@ -12,7 +12,7 @@ type WithCaptureAuthError = <T extends SupabaseAuthResponseLike>(fn: () => Promi
 
 type AppContextState = {
   user: User | null
-  subscription: any | null
+  subscription: Record<string, unknown> | null
   isLoadingSubscription: boolean
   error: AuthError | null
   isPro: boolean
@@ -21,7 +21,7 @@ type AppContextState = {
 type TAppContext = {
   supabase: SupabaseClient
   user: User | null
-  subscription: any | null
+  subscription: Record<string, unknown> | null
   isLoadingSubscription: boolean
   error: AuthError | null
   isPro: boolean
@@ -42,10 +42,10 @@ const AppContext = createContext<TAppContext>({
   mergeState: () => {},
 })
 
-export const AppContextProvider: React.FC<PropsWithChildren> = ({ children }) => {
+export const AppContextProvider = ({ children, initialUser }: { children: React.ReactNode, initialUser?: User | null }) => {
   const [state, mergeState] = useMergeState({
-    user: null as User | null,
-    subscription: null as any | null,
+    user: initialUser || null,
+    subscription: null as Record<string, unknown> | null,
     isLoadingSubscription: true,
     error: null as AuthError | null,
     isPro: false,
@@ -64,11 +64,31 @@ export const AppContextProvider: React.FC<PropsWithChildren> = ({ children }) =>
     return result
   }
 
+  // Sync state with initialUser from server (e.g. on navigation/redirect)
   useEffect(() => {
-    let subscriptionChannel: any = null;
+    if (initialUser !== undefined && initialUser?.id !== state.user?.id) {
+      console.log('[AppContext] Syncing with server user:', initialUser?.email);
+      mergeState({ user: initialUser || null });
+      
+      // If we have a new user from server, we should reset subscription state
+      // and let the main useEffect fetch it (or fetch it here)
+      if (initialUser) {
+        // We rely on the main useEffect to fetch subscription when state.user changes
+        // But we must ensure isLoading is true to prevent stale UI
+        mergeState({ isLoadingSubscription: true, isPro: false, subscription: null });
+      } else {
+        mergeState({ isLoadingSubscription: false, isPro: false, subscription: null });
+      }
+    }
+  }, [initialUser, state.user?.id, mergeState]);
+
+  useEffect(() => {
+    let subscriptionChannel: RealtimeChannel | null = null;
 
     const fetchSubscription = async (userId: string) => {
-      mergeState({ isLoadingSubscription: true })
+      // Reset state immediately to prevent stale data from persisting during load
+      mergeState({ isLoadingSubscription: true, subscription: null, isPro: false })
+      
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
@@ -112,7 +132,12 @@ export const AppContextProvider: React.FC<PropsWithChildren> = ({ children }) =>
 
     supabase.auth.getUser().then(response => {
       const user = response.data.user
-      mergeState({ user })
+      // Only update if we don't have a user yet or if it's different
+      // (Prioritize initialUser if provided and matching)
+      if (!state.user || state.user.id !== user?.id) {
+        mergeState({ user })
+      }
+      
       if (user) {
         fetchSubscription(user.id)
         setupRealtime(user.id)
@@ -124,9 +149,18 @@ export const AppContextProvider: React.FC<PropsWithChildren> = ({ children }) =>
     const listener = supabase.auth.onAuthStateChange(async (event, session) => {
       // If user updated their email successfully, show a toast
       if (event === "SIGNED_IN") {
+        console.log('[AppContext] User logged in:', session?.user);
+        // Ensure user is updated in state and reset subscription data immediately
+        // This prevents stale "Pro" status from persisting when switching accounts
+        mergeState({ 
+          user: session?.user || null,
+          isPro: false,
+          subscription: null,
+          isLoadingSubscription: true 
+        })
+
         if (localStorage.getItem("email_change") && !session?.user.new_email) {
           localStorage.removeItem("email_change")
-          mergeState({ user: session?.user || null })
           toast("Success!", {
             description: "Your email has successfully been updated."
           })
@@ -151,6 +185,7 @@ export const AppContextProvider: React.FC<PropsWithChildren> = ({ children }) =>
       listener.data.subscription.unsubscribe()
       if (subscriptionChannel) supabase.removeChannel(subscriptionChannel)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mergeState])
 
   const value = {
