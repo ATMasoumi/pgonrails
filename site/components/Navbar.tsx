@@ -26,7 +26,7 @@ type Props = {
 }
 
 export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterCount }: Props) {
-    const { user } = useAppContext()
+    const { user, subscription, isLoadingSubscription } = useAppContext()
     const pathname = usePathname()
     const router = useRouter()
 
@@ -44,9 +44,11 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
                         <span className="text-xl sm:text-2xl font-bold text-white">DocTree</span>
                     </Link>
                     <div className="flex-1 flex justify-end mr-4">
-                        <Link prefetch={false} href="/pricing" className="text-sm font-medium text-gray-300 hover:text-white">
-                            Pricing
-                        </Link>
+                        {!subscription && !isLoadingSubscription && (
+                            <Link prefetch={false} href="/pricing" className="text-sm font-medium text-gray-300 hover:text-white">
+                                Pricing
+                            </Link>
+                        )}
                     </div>
                     <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                         <DropdownMenuTrigger asChild>
@@ -164,9 +166,11 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
                     <span className={`text-xl sm:text-2xl font-bold ${isPricing ? "text-white" : "text-gray-900"}`}>DocTree</span>
                 </Link>
                 <div className="flex items-center space-x-2 sm:space-x-4">
-                    <Link prefetch={false} href="/pricing" className={`text-sm font-medium mr-4 ${isPricing ? "text-gray-300 hover:text-white" : "text-gray-700 hover:text-gray-900"}`}>
-                        Pricing
-                    </Link>
+                    {!subscription && (
+                        <Link prefetch={false} href="/pricing" className={`text-sm font-medium mr-4 ${isPricing ? "text-gray-300 hover:text-white" : "text-gray-700 hover:text-gray-900"}`}>
+                            Pricing
+                        </Link>
+                    )}
                     {user && (
                         <div className="flex items-center space-x-4 md:space-x-8">
                             <Link prefetch={false} href="/dashboard">

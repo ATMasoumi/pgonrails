@@ -7,6 +7,8 @@ import ExampleTrees from "@/components/landing/ExampleTrees"
 import SocialProof from "@/components/landing/SocialProof"
 import FinalCTA from "@/components/landing/FinalCTA"
 
+export const dynamic = 'force-dynamic';
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#020202] text-white font-sans selection:bg-purple-500/30 selection:text-purple-200">

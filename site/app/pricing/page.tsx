@@ -6,6 +6,10 @@ import CheckoutButton from '@/components/pricing/CheckoutButton';
 import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
 
+import ManageSubscriptionButton from '@/components/settings/ManageSubscriptionButton';
+
+export const dynamic = 'force-dynamic';
+
 export default async function PricingPage() {
   const priceId = 'price_1SYQz2IaanXwtACFujUP9lee';
   let price: Stripe.Price | null = null;
@@ -25,14 +29,20 @@ export default async function PricingPage() {
   
   let isSubscribed = false;
   if (user) {
-    const { data: subscription } = await supabase
+    console.log(`[PricingPage] Checking subscription for user: ${user.id}`);
+    const { data: subscription, error } = await supabase
       .from('subscriptions')
       .select('status, price_id')
       .in('status', ['trialing', 'active'])
-      .eq('user_id', user.id)
       .eq('price_id', priceId)
-      .single();
+      .maybeSingle();
       
+    if (error) {
+      console.error('[PricingPage] Subscription check error:', error);
+    } else {
+      console.log('[PricingPage] Subscription found:', subscription);
+    }
+
     isSubscribed = !!subscription;
   }
 
@@ -75,9 +85,18 @@ export default async function PricingPage() {
               <span className="text-4xl font-bold">$0</span>
               <span className="text-gray-400">/month</span>
             </div>
-            <Button variant="outline" className="w-full mb-8 bg-white/5 border-white/10 hover:bg-white/10 text-white" disabled={!isSubscribed}>
-              {isSubscribed ? 'Downgrade' : 'Current Plan'}
-            </Button>
+            {isSubscribed ? (
+              <ManageSubscriptionButton 
+                variant="outline" 
+                className="w-full mb-8 bg-white/5 border-white/10 hover:bg-white/10 text-white"
+              >
+                Downgrade
+              </ManageSubscriptionButton>
+            ) : (
+              <Button variant="outline" className="w-full mb-8 bg-white/5 border-white/10 hover:bg-white/10 text-white" disabled>
+                Current Plan
+              </Button>
+            )}
             <div className="space-y-4 flex-1">
               <p className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Includes</p>
               <ul className="space-y-3">
@@ -111,9 +130,11 @@ export default async function PricingPage() {
               <span className="text-gray-400">/{interval}</span>
             </div>
             {isSubscribed ? (
-              <Button className="w-full mb-8 bg-white/5 border-white/10 hover:bg-white/10 text-white" disabled>
-                Current Plan
-              </Button>
+              <ManageSubscriptionButton 
+                className="w-full mb-8 bg-white/5 border-white/10 hover:bg-white/10 text-white"
+              >
+                Manage Subscription
+              </ManageSubscriptionButton>
             ) : (
               <CheckoutButton 
                 priceId={priceId} 

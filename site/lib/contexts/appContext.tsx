@@ -12,13 +12,19 @@ type WithCaptureAuthError = <T extends SupabaseAuthResponseLike>(fn: () => Promi
 
 type AppContextState = {
   user: User | null
+  subscription: any | null
+  isLoadingSubscription: boolean
   error: AuthError | null
+  isPro: boolean
 }
 
 type TAppContext = {
   supabase: SupabaseClient
   user: User | null
+  subscription: any | null
+  isLoadingSubscription: boolean
   error: AuthError | null
+  isPro: boolean
   clearError: () => void
   withCaptureAuthError: WithCaptureAuthError
   mergeState: MergeStateFunction<AppContextState>
@@ -27,7 +33,10 @@ type TAppContext = {
 const AppContext = createContext<TAppContext>({
   supabase,
   user: null,
+  subscription: null,
+  isLoadingSubscription: true,
   error: null,
+  isPro: false,
   clearError: () => {},
   withCaptureAuthError: (async () => ({ error: null })) as WithCaptureAuthError,
   mergeState: () => {},
@@ -36,7 +45,10 @@ const AppContext = createContext<TAppContext>({
 export const AppContextProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const [state, mergeState] = useMergeState({
     user: null as User | null,
+    subscription: null as any | null,
+    isLoadingSubscription: true,
     error: null as AuthError | null,
+    isPro: false,
   })
 
   const clearError = () => mergeState({ error: null })
@@ -53,8 +65,60 @@ export const AppContextProvider: React.FC<PropsWithChildren> = ({ children }) =>
   }
 
   useEffect(() => {
+    let subscriptionChannel: any = null;
+
+    const fetchSubscription = async (userId: string) => {
+      mergeState({ isLoadingSubscription: true })
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .in('status', ['trialing', 'active'])
+        .eq('user_id', userId)
+        .maybeSingle()
+      
+      if (error) {
+        console.error('[AppContext] Error fetching subscription:', error)
+      } else {
+        console.log('[AppContext] Fetched subscription:', data)
+      }
+      mergeState({ 
+        subscription: data, 
+        isLoadingSubscription: false,
+        isPro: !!data 
+      })
+    }
+
+    const setupRealtime = (userId: string) => {
+      if (subscriptionChannel) {
+        supabase.removeChannel(subscriptionChannel)
+      }
+      subscriptionChannel = supabase
+        .channel('public:subscriptions')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'subscriptions',
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            console.log('[AppContext] Subscription change received:', payload)
+            fetchSubscription(userId)
+          }
+        )
+        .subscribe()
+    }
+
     supabase.auth.getUser().then(response => {
-      mergeState({ user: response.data.user })
+      const user = response.data.user
+      mergeState({ user })
+      if (user) {
+        fetchSubscription(user.id)
+        setupRealtime(user.id)
+      } else {
+        mergeState({ isLoadingSubscription: false, isPro: false })
+      }
     })
     
     const listener = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -67,12 +131,26 @@ export const AppContextProvider: React.FC<PropsWithChildren> = ({ children }) =>
             description: "Your email has successfully been updated."
           })
         }
+        if (session?.user) {
+          fetchSubscription(session.user.id)
+          setupRealtime(session.user.id)
+        }
+      } else if (event === "SIGNED_OUT") {
+        if (subscriptionChannel) supabase.removeChannel(subscriptionChannel)
+        mergeState({ user: null, subscription: null, isLoadingSubscription: false, isPro: false })
       } else if (event !== "INITIAL_SESSION") {
         mergeState({ user: session?.user || null })
+        if (session?.user) {
+          fetchSubscription(session.user.id)
+          setupRealtime(session.user.id)
+        }
       }
     })
 
-    return () => listener.data.subscription.unsubscribe()
+    return () => {
+      listener.data.subscription.unsubscribe()
+      if (subscriptionChannel) supabase.removeChannel(subscriptionChannel)
+    }
   }, [mergeState])
 
   const value = {

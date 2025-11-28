@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
-export default function ManageSubscriptionButton() {
+type Props = {
+    className?: string
+    children?: React.ReactNode
+    variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
+}
+
+export default function ManageSubscriptionButton({ className, children, variant = "outline" }: Props) {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
 
@@ -34,8 +40,8 @@ export default function ManageSubscriptionButton() {
     }
 
     return (
-        <Button variant="outline" onClick={handleManage} disabled={loading}>
-            {loading ? "Loading..." : "Manage Subscription"}
+        <Button variant={variant} className={className} onClick={handleManage} disabled={loading}>
+            {loading ? "Loading..." : (children || "Manage Subscription")}
         </Button>
     )
 }

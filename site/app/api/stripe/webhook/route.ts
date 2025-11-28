@@ -83,6 +83,8 @@ async function manageSubscriptionStatusChange(
     expand: ['default_payment_method'],
   }) as Stripe.Subscription;
 
+  console.log(`[Webhook] Retrieved subscription: ${JSON.stringify(subscription, null, 2)}`);
+
   // Upsert the latest status of the subscription object.
   const subscriptionData = {
     id: subscription.id,
@@ -95,9 +97,9 @@ async function manageSubscriptionStatusChange(
     cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null,
     canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    current_period_start: new Date((subscription as any).current_period_start * 1000).toISOString(),
+    current_period_start: new Date(((subscription as any).current_period_start || subscription.created) * 1000).toISOString(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
+    current_period_end: new Date(((subscription as any).current_period_end || subscription.created) * 1000).toISOString(),
     created: new Date(subscription.created * 1000).toISOString(),
     ended_at: subscription.ended_at ? new Date(subscription.ended_at * 1000).toISOString() : null,
     trial_start: subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : null,

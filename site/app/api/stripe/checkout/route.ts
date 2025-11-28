@@ -29,9 +29,14 @@ export async function POST(req: NextRequest) {
         },
       });
       stripeCustomerId = customer.id;
-      await supabaseAdmin
+      const { error: insertError } = await supabaseAdmin
         .from('customers')
         .insert({ id: user.id, stripe_customer_id: stripeCustomerId });
+
+      if (insertError) {
+        console.error('Error inserting customer:', insertError);
+        throw new Error('Failed to create customer record');
+      }
     }
 
     const session = await stripe.checkout.sessions.create({

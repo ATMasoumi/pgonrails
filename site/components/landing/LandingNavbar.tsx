@@ -8,7 +8,7 @@ import { motion } from "framer-motion"
 import { useAppContext } from "@/lib/contexts/appContext"
 
 export default function LandingNavbar() {
-  const { user } = useAppContext()
+  const { user, subscription, isLoadingSubscription } = useAppContext()
 
   return (
     <motion.nav 
@@ -32,8 +32,14 @@ export default function LandingNavbar() {
       <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-400">
         <Link href="#product" className="hover:text-white transition-colors">Product</Link>
         <Link href="#features" className="hover:text-white transition-colors">Features</Link>
-        <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+        {!subscription && !isLoadingSubscription && (
+          <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+        )}
         <Link href="#resources" className="hover:text-white transition-colors">Resources</Link>
+        {/* Debug Info - Remove later */}
+        {/* <span className="text-xs text-red-500">
+          {user ? 'User: Yes' : 'User: No'} | {subscription ? 'Sub: Yes' : 'Sub: No'}
+        </span> */}
       </div>
 
       <div className="flex items-center gap-4">
