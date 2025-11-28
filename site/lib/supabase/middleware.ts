@@ -3,6 +3,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { STORAGE_KEY } from './constants'
 
 export async function updateSession(request: NextRequest) {
+    if (request.nextUrl.pathname.startsWith('/api/stripe/webhook')) {
+        return NextResponse.next()
+    }
+
     const response = NextResponse.next({ request })
 
     const supabase = createServerClient(
@@ -35,11 +39,6 @@ export async function updateSession(request: NextRequest) {
 
     const userResult = await supabase.auth.getUser()
     
-    // ** STRIPE webhook - for later. **
-    // if (request.nextUrl.pathname.startsWith('/webhook')) {
-    //     return response
-    // }
-
     if (
         !userResult.data.user &&
         !request.nextUrl.pathname.startsWith('/signin') &&
@@ -48,6 +47,7 @@ export async function updateSession(request: NextRequest) {
         !request.nextUrl.pathname.startsWith('/forgot-password') &&
         !request.nextUrl.pathname.startsWith('/error') &&
         !request.nextUrl.pathname.startsWith('/share') &&
+        !request.nextUrl.pathname.startsWith('/api/stripe/webhook') &&
         !request.nextUrl.pathname.startsWith('/hall') &&
         !request.nextUrl.pathname.startsWith('/documents') &&
         !(request.nextUrl.pathname === '/')

@@ -32,7 +32,7 @@ export default function LandingNavbar() {
       <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-400">
         <Link href="#product" className="hover:text-white transition-colors">Product</Link>
         <Link href="#features" className="hover:text-white transition-colors">Features</Link>
-        <Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link>
+        <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
         <Link href="#resources" className="hover:text-white transition-colors">Resources</Link>
       </div>
 

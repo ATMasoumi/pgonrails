@@ -5,6 +5,10 @@ export async function middleware(request: NextRequest) {
     if (request.nextUrl.pathname === '/health') {
         return NextResponse.json({}, { status: 200 })
     }
+
+    if (request.nextUrl.pathname.startsWith('/api/stripe/webhook')) {
+        return NextResponse.next()
+    }
     
     return await updateSession(request)
 }

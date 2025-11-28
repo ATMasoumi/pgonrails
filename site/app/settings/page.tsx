@@ -19,10 +19,18 @@ import {
 import { deleteAccount } from "../auth/actions";
 import UpdatePassword from "@/components/settings/UpdatePassword";
 import LiveDisplayName from "./LiveDisplayName";
+import Link from "next/link";
+import ManageSubscriptionButton from "@/components/settings/ManageSubscriptionButton";
 
 export default async function Settings() {
   const supabase = await createClient()
   const { data } = await supabase.auth.getUser()
+
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('*')
+    .in('status', ['trialing', 'active'])
+    .maybeSingle()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -52,6 +60,28 @@ export default async function Settings() {
                     <Label>Email</Label>
                     <UpdateEmail initialValue={data?.user?.email} />
                 </div>
+            </div>
+        </section>
+
+        <section className="mb-8 sm:mb-10 md:mb-20 w-full max-w-100">
+            <h2 className="text-xl sm:text-2xl font-bold mb-3">
+                Billing
+            </h2>
+            <hr className="mb-4" />
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="font-medium">Subscription Status</p>
+                    <p className="text-gray-500">
+                        {subscription ? 'Active (Pro)' : 'Free Plan'}
+                    </p>
+                </div>
+                {subscription ? (
+                    <ManageSubscriptionButton />
+                ) : (
+                    <Link href="/pricing">
+                        <Button>Upgrade to Pro</Button>
+                    </Link>
+                )}
             </div>
         </section>
 

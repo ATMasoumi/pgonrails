@@ -32,6 +32,7 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
 
     const isDashboard = pathname === "/dashboard" || pathname.startsWith("/dashboard/")
     const isBoard = pathname.startsWith("/boards/")
+    const isPricing = pathname === "/pricing"
     const [dropdownOpen, setDropdownOpen] = useState(false)
     
     if (isDashboard) {
@@ -42,6 +43,11 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
                         <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
                         <span className="text-xl sm:text-2xl font-bold text-white">DocTree</span>
                     </Link>
+                    <div className="flex-1 flex justify-end mr-4">
+                        <Link prefetch={false} href="/pricing" className="text-sm font-medium text-gray-300 hover:text-white">
+                            Pricing
+                        </Link>
+                    </div>
                     <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                         <DropdownMenuTrigger asChild>
                             <Avatar className={`w-8 h-8 cursor-pointer transition-shadow hover:ring-2 hover:ring-blue-500 ${dropdownOpen ? "ring-2 ring-blue-500" : ""}`}>
@@ -151,35 +157,38 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
     }
 
     return (
-        <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+        <header className={`border-b sticky top-0 z-50 backdrop-blur-sm ${isPricing ? "bg-[#0A0A0A]/80 border-white/10" : "bg-white/80 border-gray-200"}`}>
             <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
                 <Link prefetch={false} href="/" className="flex items-center space-x-2">
-                    <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-                    <span className="text-xl sm:text-2xl font-bold text-gray-900">DocTree</span>
+                    <BookOpen className={`h-6 w-6 sm:h-8 sm:w-8 ${isPricing ? "text-blue-500" : "text-blue-600"}`} />
+                    <span className={`text-xl sm:text-2xl font-bold ${isPricing ? "text-white" : "text-gray-900"}`}>DocTree</span>
                 </Link>
                 <div className="flex items-center space-x-2 sm:space-x-4">
+                    <Link prefetch={false} href="/pricing" className={`text-sm font-medium mr-4 ${isPricing ? "text-gray-300 hover:text-white" : "text-gray-700 hover:text-gray-900"}`}>
+                        Pricing
+                    </Link>
                     {user && (
                         <div className="flex items-center space-x-4 md:space-x-8">
                             <Link prefetch={false} href="/dashboard">
-                                <Button size="sm" className="text-xs sm:text-sm cursor-pointer">
+                                <Button size="sm" className={`text-xs sm:text-sm cursor-pointer ${isPricing ? "bg-white text-black hover:bg-gray-200" : ""}`}>
                                     Dashboard <ArrowRight />
                                 </Button>
                             </Link>
                             <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                                 <DropdownMenuTrigger asChild>
-                                    <Avatar className={`w-8 h-8 cursor-pointer transition-shadow hover:ring-2 hover:ring-blue-600 ${dropdownOpen ? "ring-2 ring-blue-600" : ""}`}>
+                                    <Avatar className={`w-8 h-8 cursor-pointer transition-shadow hover:ring-2 ${isPricing ? "hover:ring-blue-500" : "hover:ring-blue-600"} ${dropdownOpen ? (isPricing ? "ring-2 ring-blue-500" : "ring-2 ring-blue-600") : ""}`}>
                                         <AvatarImage
                                             src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/render/image/public/avatars/${user?.user_metadata?.avatar_img_name}?cb=${user?.user_metadata?.avatar_img_cb}&width=32&height=32`}
                                             alt={`Profile picture for ${user?.user_metadata?.full_name}`}
                                         />
                                         <AvatarFallback>
-                                            <div className="w-8 h-8 rounded-full flex justify-center items-center bg-blue-100">
-                                                <UserRound className="h-5 w-5 text-blue-600 stroke-[2.5]" />
+                                            <div className={`w-8 h-8 rounded-full flex justify-center items-center ${isPricing ? "bg-blue-500/20" : "bg-blue-100"}`}>
+                                                <UserRound className={`h-5 w-5 stroke-[2.5] ${isPricing ? "text-blue-400" : "text-blue-600"}`} />
                                             </div>
                                         </AvatarFallback>
                                     </Avatar>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-[calc(100vw_-_32px)] max-w-100" align="end">
+                                <DropdownMenuContent className={`w-[calc(100vw_-_32px)] max-w-100 ${isPricing ? "bg-[#0A0A0A] border-white/10 text-gray-200" : ""}`} align="end">
                                     <DropdownMenuLabel className="flex items-center gap-3">
                                         <Avatar className="w-7 h-7">
                                             <AvatarImage
@@ -187,19 +196,19 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
                                                 alt={`Profile picture for ${user?.user_metadata?.full_name}`}
                                             />
                                             <AvatarFallback>
-                                                <div className="w-7 h-7 rounded-full flex justify-center items-center space-x-2 sm:space-x-4 bg-blue-100 cursor-pointer">
-                                                    <UserRound className="h-4 w-4 text-blue-600 stroke-[2.5]" />
+                                                <div className={`w-7 h-7 rounded-full flex justify-center items-center space-x-2 sm:space-x-4 cursor-pointer ${isPricing ? "bg-blue-500/20" : "bg-blue-100"}`}>
+                                                    <UserRound className={`h-4 w-4 stroke-[2.5] ${isPricing ? "text-blue-400" : "text-blue-600"}`} />
                                                 </div>
                                             </AvatarFallback>
                                         </Avatar>
                                         {user?.user_metadata?.full_name || user?.email}
                                     </DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => router.push("/settings")}>
+                                    <DropdownMenuSeparator className={isPricing ? "bg-white/10" : ""} />
+                                    <DropdownMenuItem onClick={() => router.push("/settings")} className={isPricing ? "focus:bg-white/10 focus:text-white cursor-pointer" : ""}>
                                         <Cog className="ml-1.5 mr-2.5" />
                                         Manage account
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={signout}>
+                                    <DropdownMenuItem onClick={signout} className={isPricing ? "focus:bg-white/10 focus:text-white cursor-pointer" : ""}>
                                         <LogOut className="ml-1.5 mr-2.5" />
                                         Sign out
                                     </DropdownMenuItem>
@@ -210,12 +219,12 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
                     {!user && (
                         <div className="space-x-2">
                             <Link prefetch={false} href="/signin">
-                                <Button size="sm" variant="outline" className="text-xs sm:text-sm">
+                                <Button size="sm" variant="outline" className={`text-xs sm:text-sm ${isPricing ? "bg-transparent text-white border-white/20 hover:bg-white/10 hover:text-white" : ""}`}>
                                     Sign In
                                 </Button>
                             </Link>
                             <Link prefetch={false} href="/signup">
-                                <Button size="sm" className="text-xs sm:text-sm">
+                                <Button size="sm" className={`text-xs sm:text-sm ${isPricing ? "bg-white text-black hover:bg-gray-200" : ""}`}>
                                     Sign Up
                                 </Button>
                             </Link>
