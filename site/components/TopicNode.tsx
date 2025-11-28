@@ -3,11 +3,12 @@
 import { memo, useState } from 'react'
 import { Handle, Position, NodeProps, Node } from '@xyflow/react'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square } from 'lucide-react'
+import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square, Library } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { generateQuiz, getLatestQuiz, generatePodcast, getPodcast, generateFlashcards } from '@/app/documents/actions'
+import { generateQuiz, getLatestQuiz, generatePodcast, getPodcast, generateFlashcards, generateResources } from '@/app/documents/actions'
 import { QuizModal, QuizQuestion } from '@/components/QuizModal'
 import { FlashcardModal } from '@/components/FlashcardModal'
+import { ResourcesModal, ResourceData } from '@/components/ResourcesModal'
 import { usePodcast } from '@/lib/contexts/PodcastContext'
 import { toast } from 'sonner'
 
@@ -47,6 +48,11 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
   const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false)
   const [flashcards, setFlashcards] = useState<{front: string, back: string}[]>([])
   const [isFlashcardModalOpen, setIsFlashcardModalOpen] = useState(false)
+
+  // Resources state
+  const [isGeneratingResources, setIsGeneratingResources] = useState(false)
+  const [resources, setResources] = useState<ResourceData | null>(null)
+  const [isResourcesModalOpen, setIsResourcesModalOpen] = useState(false)
 
   // Podcast state
   const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false)
@@ -162,6 +168,29 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
     }
   }
 
+  const handleResourcesClick = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!content) return
+
+    setIsResourcesModalOpen(true)
+    if (resources) return // Already loaded
+
+    setIsGeneratingResources(true)
+    try {
+      const result = await generateResources(label, content)
+      if (result.success && result.resources) {
+        setResources(result.resources)
+      } else {
+        toast.error(result.error || 'Failed to generate resources')
+      }
+    } catch (error) {
+      console.error('Error generating resources:', error)
+      toast.error('An error occurred while generating resources')
+    } finally {
+      setIsGeneratingResources(false)
+    }
+  }
+
   const handlePodcastClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
     
@@ -217,6 +246,12 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         isOpen={isFlashcardModalOpen}
         onClose={() => setIsFlashcardModalOpen(false)}
         cards={flashcards}
+      />
+      <ResourcesModal
+        isOpen={isResourcesModalOpen}
+        onClose={() => setIsResourcesModalOpen(false)}
+        resources={resources}
+        isLoading={isGeneratingResources}
       />
       <Handle
         type="target"
@@ -326,6 +361,17 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                   <Layers className="w-3 h-3" />
                 )}
                 <span className="text-[10px] font-medium">Flashcard</span>
+              </button>
+              <button 
+                onClick={handleResourcesClick}
+                className={cn(
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
+                  "bg-pink-500/5 border-pink-500/10 text-pink-400/50 hover:text-pink-400 hover:bg-pink-500/10 hover:border-pink-500/20",
+                  resources && "border-pink-500/50 bg-pink-500/10 text-pink-400 opacity-100"
+                )}
+              >
+                <Library className="w-3 h-3" />
+                <span className="text-[10px] font-medium">Resources</span>
               </button>
             </div>
           )}

@@ -8,6 +8,7 @@ import { generateText, generateObject } from 'ai'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import OpenAI from 'openai'
+import { search, SafeSearchType } from 'duck-duck-scrape'
 
 const openaiClient = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -16,7 +17,7 @@ const openaiClient = new OpenAI({
 async function generateInitialTree(supabase: SupabaseClient, rootId: string, query: string, userId: string) {
   try {
     const { object } = await generateObject({
-      model: openai('gpt-4o'),
+      model: openai('gpt-5.1'),
       system: "You are an expert taxonomist and curriculum designer. Generate a comprehensive, structured knowledge tree for the provided topic. The tree should be 2 levels deep (Topic -> Subtopics -> Sub-subtopics). Ensure the structure is logical, covers the subject thoroughly, and facilitates deep learning.",
       prompt: `Generate a knowledge tree for: ${query}`,
       schema: z.object({
@@ -581,4 +582,75 @@ export async function updateNote(id: string, note: string) {
   revalidatePath('/documents')
   revalidatePath(`/dashboard/${rootId}`)
   revalidatePath(`/boards/${id}`)
+}
+
+export async function generateResources(topic: string, content: string | null) {
+  try {
+    let searchContext = '';
+    try {
+      // Perform web searches to get real-time data
+      // Run sequentially with delays to avoid rate limiting
+      const videoResults = await search(`${topic} best youtube videos tutorials`, { safeSearch: SafeSearchType.STRICT });
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const articleResults = await search(`${topic} best articles documentation guide`, { safeSearch: SafeSearchType.STRICT });
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const bookResults = await search(`${topic} best books`, { safeSearch: SafeSearchType.STRICT });
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const influencerResults = await search(`${topic} top experts influencers`, { safeSearch: SafeSearchType.STRICT });
+
+      searchContext = `
+        YouTube Search Results:
+        ${videoResults.results.slice(0, 5).map(r => `- ${r.title}: ${r.url}`).join('\n')}
+
+        Article Search Results:
+        ${articleResults.results.slice(0, 5).map(r => `- ${r.title}: ${r.url}`).join('\n')}
+
+        Book Search Results:
+        ${bookResults.results.slice(0, 5).map(r => `- ${r.title}: ${r.url}`).join('\n')}
+
+        Influencer Search Results:
+        ${influencerResults.results.slice(0, 5).map(r => `- ${r.title}: ${r.url}`).join('\n')}
+      `;
+    } catch (error) {
+      console.error('Web search failed:', error);
+      searchContext = "Web search failed. Please generate resources based on your internal knowledge. Ensure links are valid and well-known.";
+    }
+
+    const { object } = await generateObject({
+      model: openai('gpt-4o'),
+      system: "You are a helpful research assistant. Your goal is to find high-quality learning resources for the given topic. Use the provided search results to generate a curated list of YouTube videos, articles, books, and influencers. Prioritize using the actual links and titles found in the search results to ensure accuracy.",
+      prompt: `Find learning resources for the topic: "${topic}". \n\nContext/Content: ${content ? content.substring(0, 500) : 'No content provided'}\n\nWeb Search Results:\n${searchContext}`,
+      schema: z.object({
+        youtubeVideos: z.array(z.object({
+          title: z.string(),
+          url: z.string(),
+          channelName: z.string()
+        })).describe("List of 3-5 relevant YouTube videos"),
+        articles: z.array(z.object({
+          title: z.string(),
+          url: z.string(),
+          source: z.string()
+        })).describe("List of 3-5 relevant articles or documentation"),
+        books: z.array(z.object({
+          title: z.string(),
+          author: z.string(),
+          description: z.string()
+        })).describe("List of 2-3 relevant books"),
+        influencers: z.array(z.object({
+          name: z.string(),
+          platform: z.string(),
+          handle: z.string(),
+          description: z.string()
+        })).describe("List of 3-5 key influencers or experts in this field")
+      })
+    })
+
+    return { success: true, resources: object }
+  } catch (error) {
+    console.error('Error generating resources:', error)
+    return { success: false, error: 'Failed to generate resources' }
+  }
 }
