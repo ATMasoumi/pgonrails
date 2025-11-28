@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Database, Globe, Server, Shield, Zap, Cpu, Layout, Box } from "lucide-react"
+import { Database, Server, Shield, Zap, Layout, Box } from "lucide-react"
 
 export default function Architecture() {
   return (

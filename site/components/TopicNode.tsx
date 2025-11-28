@@ -1,9 +1,9 @@
 "use client"
 
-import { memo, useState, useRef } from 'react'
+import { memo, useState } from 'react'
 import { Handle, Position, NodeProps, Node } from '@xyflow/react'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square, Play, Pause } from 'lucide-react'
+import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { generateQuiz, getLatestQuiz, generatePodcast, getPodcast, generateFlashcards } from '@/app/documents/actions'
 import { QuizModal, QuizQuestion } from '@/components/QuizModal'

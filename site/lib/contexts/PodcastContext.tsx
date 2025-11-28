@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useRef, useEffect } from 'react'
+import React, { createContext, useContext, useState, useRef } from 'react'
 
 interface PodcastContextType {
   playPodcast: (url: string, title: string) => void

@@ -2,8 +2,8 @@
 
 import { usePodcast } from "@/lib/contexts/PodcastContext"
 import { Button } from "@/components/ui/button"
-import { X, Play, Pause, Download, Volume2, VolumeX, RotateCcw, RotateCw, Maximize2, Minimize2, ChevronDown, ChevronUp } from "lucide-react"
-import { useEffect, useState, useRef } from "react"
+import { X, Play, Pause, Download, Volume2, VolumeX, RotateCcw, RotateCw, ChevronDown, ChevronUp } from "lucide-react"
+import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { Slider } from "@/components/ui/slider"
 import { motion, AnimatePresence } from "framer-motion"
@@ -71,7 +71,7 @@ export function PodcastPlayer() {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
       audio.removeEventListener('ended', handleEnded)
     }
-  }, [audioRef])
+  }, [audioRef, setIsPlaying])
 
   useEffect(() => {
     if (audioRef.current) {
@@ -81,20 +81,20 @@ export function PodcastPlayer() {
         audioRef.current.pause()
       }
     }
-  }, [isPlaying, currentUrl])
+  }, [isPlaying, currentUrl, audioRef])
 
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.playbackRate = playbackRate
     }
-  }, [playbackRate])
+  }, [playbackRate, audioRef])
 
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume
       setIsMuted(volume === 0)
     }
-  }, [volume])
+  }, [volume, audioRef])
 
   const formatTime = (time: number) => {
     if (isNaN(time)) return "0:00"

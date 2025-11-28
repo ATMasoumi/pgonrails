@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Network, Share2, Brain, FileText, Sparkles } from "lucide-react"
+import { Brain } from "lucide-react"
 import { motion } from "framer-motion"
 
 export default function Hero() {

@@ -29,7 +29,7 @@ export function NoteSidePanel({ isOpen, onClose, documentId, initialNote, title 
     try {
       await updateNote(documentId, note)
       onClose()
-    } catch (error) {
+    } catch {
       toast.error('Failed to save note')
     } finally {
       setIsSaving(false)

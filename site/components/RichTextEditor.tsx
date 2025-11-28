@@ -19,15 +19,17 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { useRef, useState, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ImageComponent = ({ node, deleteNode }: any) => {
   const [showModal, setShowModal] = useState(false)
   
   return (
     <NodeViewWrapper className="inline-block w-[48%] m-[1%] align-top">
       <div className="group relative rounded-xl border-2 border-gray-600 overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img 
           src={node.attrs.src} 
           alt={node.attrs.alt}
@@ -55,6 +57,7 @@ const ImageComponent = ({ node, deleteNode }: any) => {
       
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-5xl w-full p-0 bg-transparent border-none shadow-none">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img 
             src={node.attrs.src} 
             alt={node.attrs.alt}
@@ -66,6 +69,7 @@ const ImageComponent = ({ node, deleteNode }: any) => {
   )
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const AudioComponent = ({ node, deleteNode }: any) => {
   return (
     <NodeViewWrapper className="block w-full my-2">
