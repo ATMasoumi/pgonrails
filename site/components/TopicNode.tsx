@@ -5,10 +5,10 @@ import { Handle, Position, NodeProps, Node } from '@xyflow/react'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square, Library } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { generateQuiz, getLatestQuiz, generatePodcast, getPodcast, generateFlashcards, generateResources, generateSummary } from '@/app/documents/actions'
-import { QuizModal, QuizQuestion } from '@/components/QuizModal'
+import { generatePodcast, getPodcast, generateFlashcards, generateResources, generateSummary } from '@/app/documents/actions'
 import { FlashcardModal } from '@/components/FlashcardModal'
 import { ResourceData } from '@/components/ResourcesModal'
+import { QuizQuestion } from '@/components/QuizSidePanel'
 import { usePodcast } from '@/lib/contexts/PodcastContext'
 import { toast } from 'sonner'
 
@@ -30,6 +30,7 @@ interface TopicNodeData extends Record<string, unknown> {
   onToggleCollapse: () => void
   onOpenDocument: () => void
   onOpenNote: (id: string) => void
+  onOpenQuiz: (id: string) => void
   onOpenResources: (title: string, resources: ResourceData) => void
   onOpenSummary: (title: string, summary: string) => void
   onDelete: (id: string) => Promise<void>
@@ -39,14 +40,9 @@ interface TopicNodeData extends Record<string, unknown> {
 type TopicNode = Node<TopicNodeData>
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, onOpenNote, onOpenResources, onOpenSummary } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, onOpenNote, onOpenQuiz, onOpenResources, onOpenSummary } = data
   const [loadingType, setLoadingType] = useState<'subtopic' | 'explanation' | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isQuizOpen, setIsQuizOpen] = useState(false)
-  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([])
-  const [quizId, setQuizId] = useState<string | null>(null)
-  const [existingAnswers, setExistingAnswers] = useState<number[] | undefined>(undefined)
-  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false)
 
   // Flashcard state
   const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false)
@@ -133,57 +129,10 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
     }
   }
 
-  const generateNewQuiz = async () => {
-    if (!content) return
-    setIsGeneratingQuiz(true)
-    // Close modal while generating new one
-    setIsQuizOpen(false)
-    setExistingAnswers(undefined)
-    
-    try {
-      const result = await generateQuiz(id, content)
-      if (result.success && result.quiz) {
-        setQuizQuestions(result.quiz.questions)
-        setQuizId(result.quizId)
-        setIsQuizOpen(true)
-      }
-    } catch (error) {
-      console.error('Error generating quiz:', error)
-    } finally {
-      setIsGeneratingQuiz(false)
-    }
-  }
-
-  const handleQuizClick = async (e: React.MouseEvent) => {
+  const handleQuizClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!content) return
-
-    // If we already have questions, just open the modal
-    if (quizQuestions.length > 0) {
-      setIsQuizOpen(true)
-      return
-    }
-
-    // Check for existing quiz
-    try {
-      const existing = await getLatestQuiz(id)
-      if (existing && existing.quiz) {
-        setQuizQuestions(existing.quiz.questions)
-        setQuizId(existing.quiz.id)
-        if (existing.attempt) {
-          setExistingAnswers(existing.attempt.answers)
-        } else {
-          setExistingAnswers(undefined)
-        }
-        setIsQuizOpen(true)
-        return
-      }
-    } catch (error) {
-      console.error('Error checking for existing quiz:', error)
-    }
-
-    // Generate new quiz if none exists
-    generateNewQuiz()
+    onOpenQuiz(id)
   }
 
   const handleFlashcardClick = async (e: React.MouseEvent) => {
@@ -276,14 +225,6 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
 
   return (
     <div className="relative group">
-      <QuizModal 
-        isOpen={isQuizOpen} 
-        onClose={() => setIsQuizOpen(false)} 
-        questions={quizQuestions}
-        quizId={quizId}
-        existingAnswers={existingAnswers}
-        onGenerateNew={generateNewQuiz}
-      />
       <FlashcardModal
         isOpen={isFlashcardModalOpen}
         onClose={() => setIsFlashcardModalOpen(false)}
@@ -328,19 +269,13 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
             <div className="flex flex-wrap gap-2">
               <button 
                 onClick={handleQuizClick}
-                disabled={isGeneratingQuiz}
                 className={cn(
                   "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
                   "bg-purple-500/5 border-purple-500/10 text-purple-400/50 hover:text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/20",
-                  isGeneratingQuiz && "opacity-50 cursor-not-allowed",
-                  (hasQuiz || quizQuestions.length > 0) && "border-purple-500/50 bg-purple-500/10 text-purple-400 opacity-100"
+                  hasQuiz && "border-purple-500/50 bg-purple-500/10 text-purple-400 opacity-100"
                 )}
               >
-                {isGeneratingQuiz ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Brain className="w-3 h-3" />
-                )}
+                <Brain className="w-3 h-3" />
                 <span className="text-[10px] font-medium">Quiz</span>
               </button>
               <button 

@@ -8,8 +8,9 @@ import { TopicNode } from './TopicNode'
 import { NoteSidePanel } from './NoteSidePanel'
 import { ResourcesSidePanel } from './ResourcesSidePanel'
 import { SummarySidePanel } from './SummarySidePanel'
+import { QuizSidePanel, QuizQuestion } from './QuizSidePanel'
 import { ResourceData } from './ResourcesModal'
-import { generateTopicContent, deleteTopic } from '@/app/documents/actions'
+import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
 
 const nodeWidth = 280
@@ -106,6 +107,26 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     documentId: ''
   })
 
+  const [quizPanelState, setQuizPanelState] = useState<{
+    isOpen: boolean
+    title: string
+    documentId: string
+    content: string | null
+    questions: QuizQuestion[]
+    quizId: string | null
+    existingAnswers?: number[]
+    isGenerating: boolean
+  }>({
+    isOpen: false,
+    title: '',
+    documentId: '',
+    content: null,
+    questions: [],
+    quizId: null,
+    existingAnswers: undefined,
+    isGenerating: false
+  })
+
   const handleOpenNote = useCallback((id: string) => {
     const doc = documents.find(d => d.id === id)
     if (doc) {
@@ -134,6 +155,78 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
       documentId
     })
   }, [])
+
+  const handleOpenQuiz = useCallback(async (id: string) => {
+    const doc = documents.find(d => d.id === id)
+    if (!doc || !doc.content) return
+
+    // Open panel immediately with loading state
+    setQuizPanelState({
+      isOpen: true,
+      title: doc.query,
+      documentId: id,
+      content: doc.content,
+      questions: [],
+      quizId: null,
+      existingAnswers: undefined,
+      isGenerating: true
+    })
+
+    try {
+      // Check for existing quiz first
+      const existing = await getLatestQuiz(id)
+      if (existing && existing.quiz) {
+        setQuizPanelState(prev => ({
+          ...prev,
+          questions: existing.quiz.questions,
+          quizId: existing.quiz.id,
+          existingAnswers: existing.attempt?.answers,
+          isGenerating: false
+        }))
+        return
+      }
+
+      // Generate new quiz if none exists
+      const result = await generateQuiz(id, doc.content)
+      if (result.success && result.quiz) {
+        setQuizPanelState(prev => ({
+          ...prev,
+          questions: result.quiz.questions,
+          quizId: result.quizId,
+          isGenerating: false
+        }))
+      } else {
+        setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
+      }
+    } catch (error) {
+      console.error('Error loading quiz:', error)
+      setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
+    }
+  }, [documents])
+
+  const handleGenerateNewQuiz = useCallback(async () => {
+    const { documentId, content } = quizPanelState
+    if (!documentId || !content) return
+
+    setQuizPanelState(prev => ({ ...prev, isGenerating: true, questions: [], existingAnswers: undefined }))
+
+    try {
+      const result = await generateQuiz(documentId, content)
+      if (result.success && result.quiz) {
+        setQuizPanelState(prev => ({
+          ...prev,
+          questions: result.quiz.questions,
+          quizId: result.quizId,
+          isGenerating: false
+        }))
+      } else {
+        setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
+      }
+    } catch (error) {
+      console.error('Error generating new quiz:', error)
+      setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
+    }
+  }, [quizPanelState])
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsedIds(prev => {
@@ -202,6 +295,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           hasSummary: !!doc.summary,
           readOnly,
           onOpenNote: handleOpenNote,
+          onOpenQuiz: handleOpenQuiz,
           onOpenResources: handleOpenResources,
           onOpenSummary: (title: string, summary: string) => handleOpenSummary(title, summary, doc.id),
           onToggleCollapse: () => toggleCollapse(doc.id),
@@ -248,7 +342,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     })
 
     return getLayoutedElements(nodes, edges)
-  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenResources, handleOpenSummary])
+  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenQuiz, handleOpenResources, handleOpenSummary])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -309,6 +403,17 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         title={summaryPanelState.title}
         summary={summaryPanelState.summary}
         documentId={summaryPanelState.documentId}
+      />
+
+      <QuizSidePanel
+        isOpen={quizPanelState.isOpen}
+        onClose={() => setQuizPanelState(prev => ({ ...prev, isOpen: false }))}
+        title={quizPanelState.title}
+        questions={quizPanelState.questions}
+        quizId={quizPanelState.quizId}
+        existingAnswers={quizPanelState.existingAnswers}
+        onGenerateNew={handleGenerateNewQuiz}
+        isGenerating={quizPanelState.isGenerating}
       />
     </div>
   )

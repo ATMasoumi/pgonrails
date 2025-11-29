@@ -18,8 +18,28 @@ async function generateInitialTree(supabase: SupabaseClient, rootId: string, que
   try {
     const { object } = await generateObject({
       model: openai('gpt-5.1'),
-      system: "You are an expert taxonomist and curriculum designer. Generate a comprehensive, structured knowledge tree for the provided topic. The tree should be 2 levels deep (Topic -> Subtopics -> Sub-subtopics). Ensure the structure is logical, covers the subject thoroughly, and facilitates deep learning.",
-      prompt: `Generate a knowledge tree for: ${query}`,
+      system: `You are a world-class curriculum designer and subject matter expert. Your task is to create an optimal learning tree that transforms any topic into a structured, pedagogically-sound knowledge map.
+
+PRINCIPLES:
+1. **Progressive Complexity**: Start with foundational concepts, then build to advanced topics
+2. **Logical Dependencies**: Order subtopics so prerequisites come before dependent concepts
+3. **Comprehensive Coverage**: Include all essential areas - theory, practice, history, and applications
+4. **Balanced Depth**: Aim for 4-7 main branches, each with 3-5 sub-branches
+5. **Actionable Titles**: Use clear, specific titles that indicate what the learner will understand
+
+STRUCTURE GUIDELINES:
+- First branch: Fundamentals/Introduction/Core Concepts
+- Middle branches: Main subject areas in logical learning order
+- Later branches: Advanced topics, applications, and real-world connections
+- Final branch: Current trends, future directions, or practical projects
+
+TITLE FORMAT:
+- Be specific and descriptive (e.g., "Newton's Laws of Motion" not just "Laws")
+- Avoid vague terms like "Basics" or "Overview" - specify what basics
+- Use active language when appropriate (e.g., "Understanding X" or "Applying Y")`,
+      prompt: `Create a comprehensive learning tree for: "${query}"
+
+Generate a well-structured knowledge tree that would help someone master this topic from beginner to advanced level.`,
       schema: z.object({
         subtopics: z.array(z.object({
           query: z.string(),
@@ -148,8 +168,27 @@ export async function generateTopicContent(id: string, type: 'subtopic' | 'expla
     try {
       const { object } = await generateObject({
         model: openai('gpt-5.1'),
-        system: "You are an expert taxonomist and curriculum designer. Generate a comprehensive, structured, and logically ordered list of up to 10 subtopics for the last topic in the provided context path. The subtopics should be relevant to the specific branch of knowledge, cover the subject thoroughly, and facilitate deep learning.",
-        prompt: `Context path: ${contextString}\n\nGenerate comprehensive subtopics for: ${currentTopic}`,
+        system: `You are an expert curriculum designer specializing in breaking down complex topics into learnable components.
+
+Your task is to generate subtopics that:
+1. **Fit the Context**: Each subtopic must be specifically relevant to the parent topic within the given learning path
+2. **Are Appropriately Scoped**: Not too broad (could be its own course) or too narrow (just a detail)
+3. **Follow Learning Order**: Prerequisites and fundamentals first, then applications and advanced concepts
+4. **Are Distinct**: No overlapping subtopics - each covers unique ground
+5. **Are Actionable**: Titles should clearly indicate what the learner will understand or be able to do
+
+GENERATE 5-8 SUBTOPICS that would help someone deeply understand the topic in context.
+
+Title Guidelines:
+- Be specific: "Gradient Descent Optimization" not "Optimization"
+- Include key terms someone would search for
+- Avoid redundancy with parent topic name
+- Use consistent style (all noun phrases or all "Understanding X" format)`,
+        prompt: `Learning Path: ${contextString}
+
+Generate focused subtopics for: "${currentTopic}"
+
+These subtopics should help someone who has followed the learning path above to deeply understand ${currentTopic}.`,
         schema: z.object({
           subtopics: z.array(z.string())
         })
@@ -314,14 +353,34 @@ export async function generateQuiz(documentId: string, content: string) {
   try {
     const { object } = await generateObject({
       model: openai('gpt-4o'),
-      system: "You are an expert educator. Generate a quiz based on the provided content. The quiz should test the user's understanding of the key concepts. Provide 5 multiple-choice questions.",
-      prompt: `Content: ${content}\n\nGenerate a quiz.`,
+      system: `You are an expert educator and assessment designer. Your task is to create a comprehensive quiz that thoroughly tests understanding of the provided content.
+
+QUIZ DESIGN PRINCIPLES:
+1. **Complete Coverage**: Generate enough questions to cover ALL major concepts, facts, and ideas in the content
+2. **Bloom's Taxonomy**: Include questions at different cognitive levels:
+   - Knowledge/Recall (basic facts)
+   - Comprehension (understanding concepts)
+   - Application (using knowledge in new situations)
+   - Analysis (breaking down complex ideas)
+3. **Question Quality**: Each question should:
+   - Be clear and unambiguous
+   - Have exactly 4 plausible options
+   - Have only ONE correct answer
+   - Include a helpful explanation that teaches, not just confirms
+
+QUESTION DISTRIBUTION:
+- 30% Basic recall/definition questions
+- 40% Understanding/comprehension questions  
+- 30% Application/analysis questions
+
+Generate 10-15 questions to ensure comprehensive coverage of the material.`,
+      prompt: `Create a comprehensive quiz for the following content. Make sure to cover all the key topics, concepts, and details mentioned:\n\n${content}`,
       schema: z.object({
         questions: z.array(z.object({
-          question: z.string(),
-          options: z.array(z.string()),
-          correctAnswer: z.number().describe("Index of the correct answer (0-3)"),
-          explanation: z.string().describe("Explanation of why the answer is correct")
+          question: z.string().describe("A clear, well-formed question"),
+          options: z.array(z.string()).length(4).describe("Exactly 4 answer options"),
+          correctAnswer: z.number().min(0).max(3).describe("Index of the correct answer (0-3)"),
+          explanation: z.string().describe("A detailed explanation that helps the learner understand why this answer is correct and why others are wrong")
         }))
       })
     })
