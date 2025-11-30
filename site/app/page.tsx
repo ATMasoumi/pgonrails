@@ -1,6 +1,5 @@
 import Hero from "@/components/landing/Hero"
 import LandingNavbar from "@/components/landing/LandingNavbar"
-import HowItWorks from "@/components/landing/HowItWorks"
 import Features from "@/components/landing/Features"
 import Architecture from "@/components/landing/Architecture"
 import ExampleTrees from "@/components/landing/ExampleTrees"
@@ -20,7 +19,6 @@ export default function Home() {
       <div className="relative z-10">
         <LandingNavbar />
         <Hero />
-        <HowItWorks />
         <Features />
         <Architecture />
         <ExampleTrees />
