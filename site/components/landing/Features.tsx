@@ -483,8 +483,8 @@ export default function Features() {
             <div className="relative h-32 w-full mt-auto flex items-center justify-center">
                 {/* Background Text Lines */}
                 <div className="absolute inset-0 px-8 py-4 space-y-2 opacity-20 mask-image-linear-gradient-to-b">
-                    {[1,2,3,4,5,6].map(i => (
-                        <div key={i} className="h-1.5 bg-white rounded-full w-full" style={{ width: `${Math.random() * 40 + 60}%` }} />
+                    {[85, 72, 90, 65, 78, 95].map((width, i) => (
+                        <div key={i} className="h-1.5 bg-white rounded-full w-full" style={{ width: `${width}%` }} />
                     ))}
                 </div>
 
