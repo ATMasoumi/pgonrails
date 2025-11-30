@@ -17,7 +17,7 @@ const openaiClient = new OpenAI({
 async function generateInitialTree(supabase: SupabaseClient, rootId: string, query: string, userId: string) {
   try {
     const { object } = await generateObject({
-      model: openai('gpt-5.1'),
+      model: openai('gpt-4o-mini'),
       system: `You are a world-class curriculum designer and subject matter expert. Your task is to create an optimal learning tree that transforms any topic into a structured, pedagogically-sound knowledge map.
 
 PRINCIPLES:
@@ -167,7 +167,7 @@ export async function generateTopicContent(id: string, type: 'subtopic' | 'expla
   if (type === 'subtopic') {
     try {
       const { object } = await generateObject({
-        model: openai('gpt-5.1'),
+        model: openai('gpt-4o-mini'),
         system: `You are an expert curriculum designer specializing in breaking down complex topics into learnable components.
 
 Your task is to generate subtopics that:
@@ -214,7 +214,7 @@ These subtopics should help someone who has followed the learning path above to 
   } else {
     try {
       const { text } = await generateText({
-        model: openai('gpt-5.1'),
+        model: openai('gpt-4o-mini'),
         system: "You are an expert academic researcher and writer. Generate a highly comprehensive, detailed, and in-depth article about the requested topic. The content should be extensive, covering history, key concepts, theoretical foundations, practical applications, current state, future implications, and relevant examples. Use clear markdown formatting with multiple headers, lists, and code blocks where appropriate. Aim for a deep dive into the subject matter that provides significant value and insight.",
         prompt: `Context path: ${contextString}\n\nGenerate a comprehensive article for: ${currentTopic}`
       })
@@ -352,7 +352,7 @@ export async function generateQuiz(documentId: string, content: string) {
 
   try {
     const { object } = await generateObject({
-      model: openai('gpt-4o'),
+      model: openai('gpt-4o-mini'),
       system: `You are an expert educator and assessment designer. Your task is to create a comprehensive quiz that thoroughly tests understanding of the provided content.
 
 QUIZ DESIGN PRINCIPLES:
@@ -505,13 +505,26 @@ export async function generatePodcast(documentId: string) {
     .from('podcasts')
     .getPublicUrl(fileName)
 
+  // Fix for self-hosted/docker environments where SUPABASE_URL might be internal
+  // We want to store the public-facing URL so the client can access it
+  let finalUrl = publicUrl
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    try {
+      const internalUrlObj = new URL(publicUrl)
+      const publicUrlObj = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL)
+      finalUrl = publicUrl.replace(internalUrlObj.origin, publicUrlObj.origin)
+    } catch (e) {
+      console.error('Error replacing URL origin:', e)
+    }
+  }
+
   // Save to database
   const { error: dbError } = await supabase
     .from('podcasts')
     .insert({
       document_id: documentId,
       user_id: user.id,
-      audio_url: publicUrl
+      audio_url: finalUrl
     })
 
   if (dbError) {
@@ -519,7 +532,7 @@ export async function generatePodcast(documentId: string) {
     throw new Error('Failed to save podcast record')
   }
 
-  return publicUrl
+  return finalUrl
 }
 
 export async function getPodcast(documentId: string) {
@@ -534,6 +547,21 @@ export async function getPodcast(documentId: string) {
     .single()
 
   if (error) return null
+
+  // Runtime fix for self-hosted environments
+  if (data && data.audio_url && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    try {
+      const url = new URL(data.audio_url)
+      const publicUrlObj = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL)
+      // Only replace if the origins are different (e.g. internal vs public)
+      if (url.origin !== publicUrlObj.origin) {
+        data.audio_url = data.audio_url.replace(url.origin, publicUrlObj.origin)
+      }
+    } catch (e) {
+      // Ignore URL parsing errors
+    }
+  }
+
   return data
 }
 
@@ -558,7 +586,7 @@ export async function generateFlashcards(documentId: string, content: string, fo
 
   try {
     const { object } = await generateObject({
-      model: openai('gpt-4o'),
+      model: openai('gpt-4o-mini'),
       system: `You are an expert educator and instructional designer. Create a comprehensive set of flashcards to help students master the key concepts from the provided educational content.
 
 FLASHCARD DESIGN PRINCIPLES:
@@ -747,7 +775,7 @@ export async function generateResources(documentId: string, topic: string, conte
     }
 
     const { object } = await generateObject({
-      model: openai('gpt-4o'),
+      model: openai('gpt-4o-mini'),
       system: "You are a helpful research assistant. Your goal is to find high-quality learning resources for the given topic. Use the provided search results to generate a curated list of YouTube videos, articles, books, and influencers. Prioritize using the actual links and titles found in the search results to ensure accuracy.",
       prompt: `Find learning resources for the topic: "${topic}". \n\nContext/Content: ${content ? content.substring(0, 500) : 'No content provided'}\n\nWeb Search Results:\n${searchContext}`,
       schema: z.object({
@@ -823,7 +851,7 @@ export async function generateSummary(documentId: string) {
 
   try {
     const { text } = await generateText({
-      model: openai('gpt-4o'),
+      model: openai('gpt-4o-mini'),
       system: "You are an expert summarizer. Create a concise but comprehensive summary of the provided text in HTML format. Use appropriate tags like <p>, <ul>, <li>, <strong>, <h3> etc. Do not include <html>, <head>, or <body> tags, just the content body. Do NOT wrap the output in markdown code blocks (like ```html). Return raw HTML only.",
       prompt: `Summarize the following content:\n\n${document.content}`,
     })

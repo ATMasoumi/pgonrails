@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     Keep the tone professional and educational.`
 
   const result = streamText({
-    model: openai('gpt-5.1'),
+    model: openai('gpt-4o-mini'),
     messages,
     system: systemMessage,
   })
