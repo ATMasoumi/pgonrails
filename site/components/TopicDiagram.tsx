@@ -9,8 +9,9 @@ import { NoteSidePanel } from './NoteSidePanel'
 import { ResourcesSidePanel } from './ResourcesSidePanel'
 import { SummarySidePanel } from './SummarySidePanel'
 import { QuizSidePanel, QuizQuestion } from './QuizSidePanel'
+import { FlashcardSidePanel, Flashcard } from './FlashcardSidePanel'
 import { ResourceData } from './ResourcesModal'
-import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz } from '@/app/documents/actions'
+import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz, generateFlashcards, getFlashcards } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
 
 const nodeWidth = 280
@@ -127,6 +128,24 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     isGenerating: false
   })
 
+  const [flashcardPanelState, setFlashcardPanelState] = useState<{
+    isOpen: boolean
+    title: string
+    documentId: string
+    content: string | null
+    cards: Flashcard[]
+    masteredIndices: number[]
+    isGenerating: boolean
+  }>({
+    isOpen: false,
+    title: '',
+    documentId: '',
+    content: null,
+    cards: [],
+    masteredIndices: [],
+    isGenerating: false
+  })
+
   const handleOpenNote = useCallback((id: string) => {
     const doc = documents.find(d => d.id === id)
     if (doc) {
@@ -195,6 +214,8 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           quizId: result.quizId,
           isGenerating: false
         }))
+        // Refresh to update the button state
+        router.refresh()
       } else {
         setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
       }
@@ -202,7 +223,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
       console.error('Error loading quiz:', error)
       setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
     }
-  }, [documents])
+  }, [documents, router])
 
   const handleGenerateNewQuiz = useCallback(async () => {
     const { documentId, content } = quizPanelState
@@ -219,6 +240,8 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           quizId: result.quizId,
           isGenerating: false
         }))
+        // Refresh to update the button state
+        router.refresh()
       } else {
         setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
       }
@@ -226,7 +249,91 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
       console.error('Error generating new quiz:', error)
       setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
     }
-  }, [quizPanelState])
+  }, [quizPanelState, router])
+
+  const handleOpenFlashcards = useCallback(async (id: string) => {
+    const doc = documents.find(d => d.id === id)
+    if (!doc || !doc.content) return
+
+    // If we already have the data for this document, just open it
+    if (flashcardPanelState.documentId === id && flashcardPanelState.cards.length > 0) {
+      setFlashcardPanelState(prev => ({ ...prev, isOpen: true }))
+      return
+    }
+
+    // Set loading state but DON'T open panel yet
+    setFlashcardPanelState({
+      isOpen: false,
+      title: doc.query,
+      documentId: id,
+      content: doc.content,
+      cards: [],
+      masteredIndices: [],
+      isGenerating: true
+    })
+
+    try {
+      // Check for existing flashcards first
+      const existing = await getFlashcards(id)
+      if (existing && existing.cards && existing.cards.length > 0) {
+        // Open panel with existing cards and mastered state
+        setFlashcardPanelState(prev => ({
+          ...prev,
+          isOpen: true,
+          cards: existing.cards,
+          masteredIndices: existing.mastered_indices || [],
+          isGenerating: false
+        }))
+        return
+      }
+
+      // Generate new flashcards if none exist
+      const result = await generateFlashcards(id, doc.content)
+      if (result.success && result.flashcards) {
+        // Open panel after flashcards are generated
+        setFlashcardPanelState(prev => ({
+          ...prev,
+          isOpen: true,
+          cards: result.flashcards.cards,
+          masteredIndices: [],
+          isGenerating: false
+        }))
+        // Refresh to update the button state
+        router.refresh()
+      } else {
+        setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
+      }
+    } catch (error) {
+      console.error('Error loading flashcards:', error)
+      setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
+    }
+  }, [documents, router])
+
+  const handleGenerateNewFlashcards = useCallback(async () => {
+    const { documentId, content } = flashcardPanelState
+    if (!documentId || !content) return
+
+    setFlashcardPanelState(prev => ({ ...prev, isGenerating: true, cards: [] }))
+
+    try {
+      // Force regenerate new flashcards
+      const result = await generateFlashcards(documentId, content, true)
+      if (result.success && result.flashcards) {
+        setFlashcardPanelState(prev => ({
+          ...prev,
+          cards: result.flashcards.cards,
+          isGenerating: false
+        }))
+        // Refresh to update the button state
+        router.refresh()
+      } else {
+        setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
+      }
+    } catch (error) {
+      console.error('Error generating new flashcards:', error)
+      setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
+    }
+  }, [flashcardPanelState, router])
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsedIds(prev => {
@@ -293,9 +400,12 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           hasResources: doc.resources && doc.resources.length > 0,
           hasNote: !!doc.note && doc.note.trim().length > 0 && doc.note !== '<p></p>',
           hasSummary: !!doc.summary,
+          isGeneratingQuiz: quizPanelState.isGenerating && quizPanelState.documentId === doc.id,
+          isGeneratingFlashcards: flashcardPanelState.isGenerating && flashcardPanelState.documentId === doc.id,
           readOnly,
           onOpenNote: handleOpenNote,
           onOpenQuiz: handleOpenQuiz,
+          onOpenFlashcards: handleOpenFlashcards,
           onOpenResources: handleOpenResources,
           onOpenSummary: (title: string, summary: string) => handleOpenSummary(title, summary, doc.id),
           onToggleCollapse: () => toggleCollapse(doc.id),
@@ -342,7 +452,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     })
 
     return getLayoutedElements(nodes, edges)
-  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenQuiz, handleOpenResources, handleOpenSummary])
+  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenQuiz, handleOpenFlashcards, handleOpenResources, handleOpenSummary, quizPanelState.isGenerating, quizPanelState.documentId, flashcardPanelState.isGenerating, flashcardPanelState.documentId])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -414,6 +524,18 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         existingAnswers={quizPanelState.existingAnswers}
         onGenerateNew={handleGenerateNewQuiz}
         isGenerating={quizPanelState.isGenerating}
+      />
+
+      <FlashcardSidePanel
+        isOpen={flashcardPanelState.isOpen}
+        onClose={() => setFlashcardPanelState(prev => ({ ...prev, isOpen: false }))}
+        title={flashcardPanelState.title}
+        cards={flashcardPanelState.cards}
+        documentId={flashcardPanelState.documentId}
+        initialMasteredIndices={flashcardPanelState.masteredIndices}
+        onGenerateNew={handleGenerateNewFlashcards}
+        onMasteredChange={(indices) => setFlashcardPanelState(prev => ({ ...prev, masteredIndices: indices }))}
+        isGenerating={flashcardPanelState.isGenerating}
       />
     </div>
   )

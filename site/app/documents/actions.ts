@@ -537,35 +537,65 @@ export async function getPodcast(documentId: string) {
   return data
 }
 
-export async function generateFlashcards(documentId: string, content: string) {
+export async function generateFlashcards(documentId: string, content: string, forceRegenerate: boolean = false) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) throw new Error('Unauthorized')
 
-  // Check if flashcards already exist
-  const { data: existing } = await supabase
-    .from('flashcards')
-    .select('*')
-    .eq('document_id', documentId)
-    .limit(1)
+  // Check if flashcards already exist (unless forcing regeneration)
+  if (!forceRegenerate) {
+    const { data: existing } = await supabase
+      .from('flashcards')
+      .select('*')
+      .eq('document_id', documentId)
+      .limit(1)
 
-  if (existing && existing.length > 0) {
-    return { success: true, flashcards: existing[0] }
+    if (existing && existing.length > 0) {
+      return { success: true, flashcards: existing[0] }
+    }
   }
 
   try {
     const { object } = await generateObject({
       model: openai('gpt-4o'),
-      system: "You are an expert educator. Create a set of flashcards to help a student learn the key concepts from the provided text. Each flashcard should have a 'front' (question or term) and a 'back' (answer or definition).",
-      prompt: `Create 5-10 flashcards for the following content: ${content}`,
+      system: `You are an expert educator and instructional designer. Create a comprehensive set of flashcards to help students master the key concepts from the provided educational content.
+
+FLASHCARD DESIGN PRINCIPLES:
+1. Active Recall - Questions should test understanding, not just recognition
+2. One Concept Per Card - Each card focuses on a single, specific piece of knowledge
+3. Varied Question Types - Include definitions, applications, comparisons, and examples
+4. Progressive Difficulty - Mix basic facts with more challenging conceptual questions
+
+CARD CATEGORIES TO INCLUDE:
+- Key Terms & Definitions
+- Core Concepts & Principles  
+- Cause & Effect relationships
+- Comparisons & Contrasts
+- Real-world Applications
+- Common Misconceptions (as "True or False" or "What's wrong with...")
+
+FORMAT:
+- Front: Clear, focused question or prompt (avoid yes/no questions when possible)
+- Back: Concise but complete answer (typically 1-3 sentences)`,
+      prompt: `Create 12-18 high-quality flashcards covering all major concepts from the following educational content. Ensure comprehensive coverage across different cognitive levels:
+
+${content}`,
       schema: z.object({
         cards: z.array(z.object({
-          front: z.string(),
-          back: z.string()
+          front: z.string().describe('The question or prompt on the front of the flashcard'),
+          back: z.string().describe('The answer or explanation on the back of the flashcard')
         }))
       })
     })
+
+    // Delete existing flashcards if regenerating
+    if (forceRegenerate) {
+      await supabase
+        .from('flashcards')
+        .delete()
+        .eq('document_id', documentId)
+    }
 
     const { data, error } = await supabase
       .from('flashcards')
@@ -596,6 +626,28 @@ export async function getFlashcards(documentId: string) {
 
   if (error) return null
   return data
+}
+
+export async function updateFlashcardsMastered(documentId: string, masteredIndices: number[]) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  const { error } = await supabase
+    .from('flashcards')
+    .update({ mastered_indices: masteredIndices })
+    .eq('document_id', documentId)
+    .eq('user_id', user.id)
+
+  if (error) {
+    console.error('Error updating mastered flashcards:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
 }
 
 export async function updateNote(id: string, note: string) {

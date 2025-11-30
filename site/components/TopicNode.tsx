@@ -5,8 +5,7 @@ import { Handle, Position, NodeProps, Node } from '@xyflow/react'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square, Library } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { generatePodcast, getPodcast, generateFlashcards, generateResources, generateSummary } from '@/app/documents/actions'
-import { FlashcardModal } from '@/components/FlashcardModal'
+import { generatePodcast, getPodcast, generateResources, generateSummary } from '@/app/documents/actions'
 import { ResourceData } from '@/components/ResourcesModal'
 import { QuizQuestion } from '@/components/QuizSidePanel'
 import { usePodcast } from '@/lib/contexts/PodcastContext'
@@ -27,10 +26,13 @@ interface TopicNodeData extends Record<string, unknown> {
   hasResources?: boolean
   hasNote?: boolean
   hasSummary?: boolean
+  isGeneratingQuiz?: boolean
+  isGeneratingFlashcards?: boolean
   onToggleCollapse: () => void
   onOpenDocument: () => void
   onOpenNote: (id: string) => void
   onOpenQuiz: (id: string) => void
+  onOpenFlashcards: (id: string) => void
   onOpenResources: (title: string, resources: ResourceData) => void
   onOpenSummary: (title: string, summary: string) => void
   onDelete: (id: string) => Promise<void>
@@ -40,14 +42,9 @@ interface TopicNodeData extends Record<string, unknown> {
 type TopicNode = Node<TopicNodeData>
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, onOpenNote, onOpenQuiz, onOpenResources, onOpenSummary } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary } = data
   const [loadingType, setLoadingType] = useState<'subtopic' | 'explanation' | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-
-  // Flashcard state
-  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false)
-  const [flashcards, setFlashcards] = useState<{front: string, back: string}[]>([])
-  const [isFlashcardModalOpen, setIsFlashcardModalOpen] = useState(false)
 
   // Resources state
   const [isGeneratingResources, setIsGeneratingResources] = useState(false)
@@ -135,25 +132,10 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
     onOpenQuiz(id)
   }
 
-  const handleFlashcardClick = async (e: React.MouseEvent) => {
+  const handleFlashcardClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!content || isGeneratingFlashcards) return
-
-    setIsGeneratingFlashcards(true)
-    try {
-      const result = await generateFlashcards(id, content)
-      if (result.success && result.flashcards) {
-        setFlashcards(result.flashcards.cards)
-        setIsFlashcardModalOpen(true)
-      } else {
-        toast.error(result.error || 'Failed to generate flashcards')
-      }
-    } catch (error) {
-      console.error('Error generating flashcards:', error)
-      toast.error('An error occurred while generating flashcards')
-    } finally {
-      setIsGeneratingFlashcards(false)
-    }
+    onOpenFlashcards(id)
   }
 
   const handleResourcesClick = async (e: React.MouseEvent) => {
@@ -225,11 +207,6 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
 
   return (
     <div className="relative group">
-      <FlashcardModal
-        isOpen={isFlashcardModalOpen}
-        onClose={() => setIsFlashcardModalOpen(false)}
-        cards={flashcards}
-      />
       <Handle
         type="target"
         position={Position.Left}
@@ -269,14 +246,20 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
             <div className="flex flex-wrap gap-2">
               <button 
                 onClick={handleQuizClick}
+                disabled={isGeneratingQuiz}
                 className={cn(
                   "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
                   "bg-purple-500/5 border-purple-500/10 text-purple-400/50 hover:text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/20",
-                  hasQuiz && "border-purple-500/50 bg-purple-500/10 text-purple-400 opacity-100"
+                  isGeneratingQuiz && "opacity-50 cursor-not-allowed",
+                  hasQuiz && !isGeneratingQuiz && "border-purple-500/50 bg-purple-500/10 text-purple-400 opacity-100"
                 )}
               >
-                <Brain className="w-3 h-3" />
-                <span className="text-[10px] font-medium">Quiz</span>
+                {isGeneratingQuiz ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Brain className="w-3 h-3" />
+                )}
+                <span className="text-[10px] font-medium">{isGeneratingQuiz ? 'Generating...' : 'Quiz'}</span>
               </button>
               <button 
                 onClick={handlePodcastClick}
@@ -321,9 +304,9 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                 disabled={isGeneratingFlashcards}
                 className={cn(
                   "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
-                  "bg-blue-500/5 border-blue-500/10 text-blue-400/50 hover:text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/20",
+                  "bg-cyan-500/5 border-cyan-500/10 text-cyan-400/50 hover:text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/20",
                   isGeneratingFlashcards && "opacity-50 cursor-not-allowed",
-                  (hasFlashcards || flashcards.length > 0) && "border-blue-500/50 bg-blue-500/10 text-blue-400 opacity-100"
+                  hasFlashcards && !isGeneratingFlashcards && "border-cyan-500/50 bg-cyan-500/10 text-cyan-400 opacity-100"
                 )}
               >
                 {isGeneratingFlashcards ? (
@@ -331,7 +314,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                 ) : (
                   <Layers className="w-3 h-3" />
                 )}
-                <span className="text-[10px] font-medium">Flashcard</span>
+                <span className="text-[10px] font-medium">{isGeneratingFlashcards ? 'Generating...' : 'Flashcards'}</span>
               </button>
               <button 
                 onClick={handleResourcesClick}
