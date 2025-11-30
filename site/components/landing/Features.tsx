@@ -218,9 +218,6 @@ export default function Features() {
               <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
                 <BrainCircuit className="w-5 h-5 text-green-400" />
               </div>
-              <span className="text-xs font-medium px-2 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">
-                Active Recall
-              </span>
             </div>
             <h3 className="text-lg font-bold tracking-tight mb-2 text-white relative z-10">Quizzes & Flashcards</h3>
             <p className="text-sm text-gray-400 leading-relaxed mb-6 relative z-10">
@@ -323,16 +320,6 @@ export default function Features() {
             <div className="flex items-start justify-between mb-4 relative z-10">
               <div className="w-10 h-10 rounded-xl bg-pink-500/20 flex items-center justify-center">
                 <Headphones className="w-5 h-5 text-pink-400" />
-              </div>
-              <div className="flex gap-1">
-                {[1,2,3,4].map(i => (
-                  <motion.div 
-                    key={i}
-                    className="w-1 bg-pink-500/40 rounded-full"
-                    animate={{ height: [8, 16, 8] }}
-                    transition={{ duration: 1, repeat: Infinity, delay: i * 0.1 }}
-                  />
-                ))}
               </div>
             </div>
             <h3 className="text-lg font-bold tracking-tight mb-2 text-white relative z-10">Audio Podcasts</h3>

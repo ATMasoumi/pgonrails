@@ -1,7 +1,6 @@
 import Hero from "@/components/landing/Hero"
 import LandingNavbar from "@/components/landing/LandingNavbar"
 import Features from "@/components/landing/Features"
-import Architecture from "@/components/landing/Architecture"
 import ExampleTrees from "@/components/landing/ExampleTrees"
 import SocialProof from "@/components/landing/SocialProof"
 import FinalCTA from "@/components/landing/FinalCTA"
@@ -20,7 +19,6 @@ export default function Home() {
         <LandingNavbar />
         <Hero />
         <Features />
-        <Architecture />
         <ExampleTrees />
         <SocialProof />
         <FinalCTA />
