@@ -21,8 +21,8 @@ export function CodeBlock({ language, value }: CodeBlockProps) {
   }
 
   return (
-    <div className="relative group rounded-lg overflow-hidden my-4 border border-white/10 bg-[#020202]">
-      <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/10">
+    <span className="relative group rounded-lg overflow-hidden my-4 border border-white/10 bg-[#020202] block font-sans">
+      <span className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/10">
         <span className="text-xs font-medium text-gray-400 uppercase">
           {language || 'text'}
         </span>
@@ -37,20 +37,26 @@ export function CodeBlock({ language, value }: CodeBlockProps) {
             <Copy className="h-4 w-4 text-gray-400" />
           )}
         </button>
-      </div>
+      </span>
       <SyntaxHighlighter
         style={vscDarkPlus}
         language={language}
-        PreTag="div"
+        PreTag="span"
         customStyle={{
           margin: 0,
           borderRadius: 0,
           padding: '1rem',
           background: 'transparent', // Let the container background show through
+          display: 'block',
+        }}
+        codeTagProps={{
+          style: {
+            fontFamily: 'inherit',
+          }
         }}
       >
         {value}
       </SyntaxHighlighter>
-    </div>
+    </span>
   )
 }

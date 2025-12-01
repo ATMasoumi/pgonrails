@@ -954,3 +954,15 @@ export async function updateNodePosition(id: string, x: number, y: number) {
 
   return { success: true }
 }
+
+export async function getChatMessages(documentId: string) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .eq('document_id', documentId)
+    .order('created_at', { ascending: true })
+  
+  return data || []
+}
+

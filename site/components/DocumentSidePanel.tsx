@@ -1,13 +1,13 @@
 "use client"
 
 import { useChat } from '@ai-sdk/react'
-import { useEffect, useRef } from 'react'
-import { X, Send, Loader2, Save, Bot, User } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { X, Send, Loader2, Bot, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import ReactMarkdown from 'react-markdown'
 import { cn } from '@/lib/utils'
-import { updateTopicContent } from '@/app/documents/actions'
+import { getChatMessages } from '@/app/documents/actions'
 import { toast } from 'sonner'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -17,9 +17,11 @@ interface DocumentSidePanelProps {
   isOpen: boolean
   onClose: () => void
   initialPrompt?: string
+  pendingMessage?: string | null
+  onMessageSent?: () => void
 }
 
-export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt }: DocumentSidePanelProps) {
+export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt, pendingMessage, onMessageSent }: DocumentSidePanelProps) {
   const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, append } = useChat({
     api: '/api/chat',
     body: { topicId },
@@ -27,39 +29,51 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt }: D
   })
 
   const hasStartedRef = useRef(false)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
 
   useEffect(() => {
-    if (isOpen && topicId && messages.length === 0 && !hasStartedRef.current && initialPrompt) {
+    if (isOpen && pendingMessage && historyLoaded) {
+      append({ 
+        role: 'user', 
+        content: pendingMessage 
+      })
+      onMessageSent?.()
+    }
+  }, [isOpen, pendingMessage, append, onMessageSent, historyLoaded])
+
+  useEffect(() => {
+    if (isOpen && topicId && messages.length === 0 && !hasStartedRef.current && initialPrompt && historyLoaded) {
       hasStartedRef.current = true
       append({ 
         role: 'user', 
         content: initialPrompt 
       })
     }
-  }, [isOpen, topicId, messages.length, append, initialPrompt])
+  }, [isOpen, topicId, messages.length, append, initialPrompt, historyLoaded])
 
-  // Reset when topic changes
+  // Reset and load history when topic changes
   useEffect(() => {
     if (topicId) {
       setMessages([])
       hasStartedRef.current = false
+      setHistoryLoaded(false)
+      
+      getChatMessages(topicId).then(history => {
+        if (history && history.length > 0) {
+          const uiMessages = history.map(msg => ({
+            id: msg.id,
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+            createdAt: new Date(msg.created_at)
+          }))
+          setMessages(uiMessages)
+          hasStartedRef.current = true
+        }
+      }).finally(() => {
+        setHistoryLoaded(true)
+      })
     }
   }, [topicId, setMessages])
-
-  const handleSave = async () => {
-    if (!topicId) return
-    // Find the last assistant message
-    const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant')
-    if (!lastAssistantMessage) return
-
-    try {
-      await updateTopicContent(topicId, lastAssistantMessage.content)
-      toast.success('Document saved')
-      onClose()
-    } catch {
-      toast.error('Failed to save document')
-    }
-  }
 
   if (!isOpen) return null
 
@@ -69,9 +83,6 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt }: D
       <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#0A0A0A]">
         <h2 className="font-semibold text-lg text-white">Document Generator</h2>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={handleSave} title="Save Document" disabled={isLoading || messages.length === 0} className="text-gray-400 hover:text-white hover:bg-white/10">
-            <Save className="w-5 h-5" />
-          </Button>
           <Button variant="ghost" size="icon" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">
             <X className="w-5 h-5" />
           </Button>
