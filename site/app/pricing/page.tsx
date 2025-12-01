@@ -5,6 +5,7 @@ import { stripe } from '@/lib/stripe/server';
 import CheckoutButton from '@/components/pricing/CheckoutButton';
 import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
 import ManageSubscriptionButton from '@/components/settings/ManageSubscriptionButton';
 
@@ -34,7 +35,6 @@ export default async function PricingPage() {
       .from('subscriptions')
       .select('status, price_id')
       .in('status', ['trialing', 'active'])
-      .eq('price_id', priceId)
       .maybeSingle();
       
     if (error) {
@@ -44,6 +44,10 @@ export default async function PricingPage() {
     }
 
     isSubscribed = !!subscription;
+
+    if (isSubscribed) {
+      redirect('/dashboard');
+    }
   }
 
   const formatPrice = (amount: number | null, currency: string) => {

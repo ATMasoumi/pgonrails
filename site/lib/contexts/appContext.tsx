@@ -65,6 +65,10 @@ export const AppContextProvider = ({ children, initialUser }: { children: React.
   }
 
   // Sync state with initialUser from server (e.g. on navigation/redirect)
+  // REMOVED: This effect was causing stale user data to persist on client-side navigation/logout
+  // because initialUser prop doesn't update on client-side navigation in App Router layouts.
+  // We rely on onAuthStateChange for client-side updates.
+  /*
   useEffect(() => {
     if (initialUser !== undefined && initialUser?.id !== state.user?.id) {
       console.log('[AppContext] Syncing with server user:', initialUser?.email);
@@ -81,6 +85,7 @@ export const AppContextProvider = ({ children, initialUser }: { children: React.
       }
     }
   }, [initialUser, state.user?.id, mergeState]);
+  */
 
   useEffect(() => {
     let subscriptionChannel: RealtimeChannel | null = null;
@@ -99,11 +104,11 @@ export const AppContextProvider = ({ children, initialUser }: { children: React.
       if (error) {
         console.error('[AppContext] Error fetching subscription:', error)
       } else {
-        console.log('[AppContext] Fetched subscription:', data)
+        console.log('[AppContext] Fetched subscription for user', userId, ':', data)
       }
       mergeState({ 
         subscription: data, 
-        isLoadingSubscription: false,
+        isLoadingSubscription: false, 
         isPro: !!data 
       })
     }
@@ -130,62 +135,42 @@ export const AppContextProvider = ({ children, initialUser }: { children: React.
         .subscribe()
     }
 
-    supabase.auth.getUser().then(response => {
-      const user = response.data.user
-      // Only update if we don't have a user yet or if it's different
-      // (Prioritize initialUser if provided and matching)
-      if (!state.user || state.user.id !== user?.id) {
-        mergeState({ user })
-      }
-      
-      if (user) {
-        fetchSubscription(user.id)
-        setupRealtime(user.id)
-      } else {
-        mergeState({ isLoadingSubscription: false, isPro: false })
-      }
-    })
-    
-    const listener = supabase.auth.onAuthStateChange(async (event, session) => {
-      // If user updated their email successfully, show a toast
-      if (event === "SIGNED_IN") {
-        console.log('[AppContext] User logged in:', session?.user);
-        // Ensure user is updated in state and reset subscription data immediately
-        // This prevents stale "Pro" status from persisting when switching accounts
-        mergeState({ 
-          user: session?.user || null,
-          isPro: false,
-          subscription: null,
-          isLoadingSubscription: true 
-        })
+    // Initial user check
+    if (state.user) {
+      fetchSubscription(state.user.id)
+      setupRealtime(state.user.id)
+    } else {
+      mergeState({ isLoadingSubscription: false, isPro: false })
+    }
 
-        if (localStorage.getItem("email_change") && !session?.user.new_email) {
-          localStorage.removeItem("email_change")
-          toast("Success!", {
-            description: "Your email has successfully been updated."
-          })
-        }
-        if (session?.user) {
-          fetchSubscription(session.user.id)
-          setupRealtime(session.user.id)
+    return () => {
+      if (subscriptionChannel) supabase.removeChannel(subscriptionChannel)
+    }
+  }, [state.user?.id, mergeState])
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AppContext] Auth state change:', event, session?.user?.email);
+      
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+        mergeState({ user: session?.user || null })
+        
+        if (event === "SIGNED_IN") {
+          if (localStorage.getItem("email_change") && !session?.user.new_email) {
+            localStorage.removeItem("email_change")
+            toast("Success!", {
+              description: "Your email has successfully been updated."
+            })
+          }
         }
       } else if (event === "SIGNED_OUT") {
-        if (subscriptionChannel) supabase.removeChannel(subscriptionChannel)
         mergeState({ user: null, subscription: null, isLoadingSubscription: false, isPro: false })
-      } else if (event !== "INITIAL_SESSION") {
-        mergeState({ user: session?.user || null })
-        if (session?.user) {
-          fetchSubscription(session.user.id)
-          setupRealtime(session.user.id)
-        }
       }
     })
 
     return () => {
-      listener.data.subscription.unsubscribe()
-      if (subscriptionChannel) supabase.removeChannel(subscriptionChannel)
+      subscription.unsubscribe()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mergeState])
 
   const value = {
