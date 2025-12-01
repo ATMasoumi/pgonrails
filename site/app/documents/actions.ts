@@ -301,7 +301,7 @@ export async function togglePublic(id: string, isPublic: boolean) {
   // First verify ownership of the root doc
   const { data: doc, error: fetchError } = await supabase
     .from('documents')
-    .select('id')
+    .select('id, query, content')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
@@ -333,12 +333,51 @@ export async function togglePublic(id: string, isPublic: boolean) {
     }
   }
 
+  const updatePayload: { is_public: boolean; published_at?: string } = { is_public: isPublic }
+  if (isPublic) {
+    updatePayload.published_at = new Date().toISOString()
+  }
+
   const { error } = await supabase
     .from('documents')
-    .update({ is_public: isPublic })
+    .update(updatePayload)
     .in('id', Array.from(descendants))
 
   if (error) throw error
+
+  // Generate description if making public and no content exists
+  if (isPublic && (!doc.content || doc.content.length < 20)) {
+    try {
+      // Fetch immediate children for context
+      const { data: children } = await supabase
+        .from('documents')
+        .select('query')
+        .eq('parent_id', id)
+        .limit(5)
+
+      const childrenTopics = children?.map(c => c.query).join(', ') || ''
+      
+      const { text: description } = await generateText({
+        model: openai('gpt-4o-mini'),
+        system: 'You are an expert curator of knowledge trees. Your goal is to write compelling, concise descriptions.',
+        prompt: `Generate a short, engaging description (max 250 characters) for a public knowledge tree titled "${doc.query}".
+                 
+                 Key subtopics in this tree include: ${childrenTopics}.
+                 
+                 The description should explain what the user will learn and why it's interesting. Do not use hashtags or emojis.`
+      })
+
+      if (description) {
+        await supabase
+          .from('documents')
+          .update({ content: description })
+          .eq('id', id)
+      }
+    } catch (err) {
+      console.error('Error generating description:', err)
+      // Don't fail the request if description generation fails
+    }
+  }
 
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/${id}`)
