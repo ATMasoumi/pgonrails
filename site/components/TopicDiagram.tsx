@@ -11,7 +11,7 @@ import { SummarySidePanel } from './SummarySidePanel'
 import { QuizSidePanel, QuizQuestion } from './QuizSidePanel'
 import { FlashcardSidePanel, Flashcard } from './FlashcardSidePanel'
 import { ResourceData } from './ResourcesModal'
-import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz, generateFlashcards, getFlashcards } from '@/app/documents/actions'
+import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz, generateFlashcards, getFlashcards, updateNodePosition } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
 
 const nodeWidth = 280
@@ -33,6 +33,8 @@ interface Document {
   resources?: { id: string }[]
   note?: string | null
   summary?: string | null
+  position_x?: number
+  position_y?: number
 }
 
 const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
@@ -52,6 +54,10 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   dagre.layout(dagreGraph)
 
   const layoutedNodes = nodes.map((node) => {
+    if (node.data.hasPosition) {
+      return node
+    }
+
     const nodeWithPosition = dagreGraph.node(node.id)
     return {
       ...node,
@@ -382,6 +388,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     documents.forEach((doc) => {
       if (!isVisible(doc)) return
 
+      const hasPosition = doc.position_x !== null && doc.position_x !== undefined && doc.position_y !== null && doc.position_y !== undefined
 
       nodes.push({
         id: doc.id,
@@ -403,6 +410,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           isGeneratingQuiz: quizPanelState.isGenerating && quizPanelState.documentId === doc.id,
           isGeneratingFlashcards: flashcardPanelState.isGenerating && flashcardPanelState.documentId === doc.id,
           readOnly,
+          hasPosition,
           onOpenNote: handleOpenNote,
           onOpenQuiz: handleOpenQuiz,
           onOpenFlashcards: handleOpenFlashcards,
@@ -432,7 +440,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
             }
           }
         },
-        position: { x: 0, y: 0 } // Calculated by dagre
+        position: hasPosition ? { x: doc.position_x!, y: doc.position_y! } : { x: 0, y: 0 }
       })
 
       const parent = documents.find((d: Document) => d.id === doc.parent_id)
@@ -464,6 +472,15 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
      setEdges(layoutedEdges)
   }, [initialNodes, initialEdges, setNodes, setEdges])
 
+  const onNodeDragStop = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      if (!readOnly) {
+        updateNodePosition(node.id, node.position.x, node.position.y)
+      }
+    },
+    [readOnly],
+  )
+
   return (
     <div className="h-full w-full bg-[#020202] relative overflow-hidden">
       {/* Ambient background effects */}
@@ -475,6 +492,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
         fitView
         minZoom={0.01}

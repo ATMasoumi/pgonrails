@@ -935,3 +935,22 @@ export async function deleteSummary(documentId: string) {
     return { success: false, error: 'Failed to delete summary' }
   }
 }
+
+export async function updateNodePosition(id: string, x: number, y: number) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { error } = await supabase
+    .from('documents')
+    .update({ position_x: x, position_y: y })
+    .eq('id', id)
+    .eq('user_id', user.id)
+
+  if (error) {
+    console.error('Error updating node position:', error)
+    throw new Error('Failed to update node position')
+  }
+
+  return { success: true }
+}
