@@ -10,6 +10,7 @@ import { ResourceData } from '@/components/ResourcesModal'
 import { QuizQuestion } from '@/components/QuizSidePanel'
 import { usePodcast } from '@/lib/contexts/PodcastContext'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
 interface TopicNodeData extends Record<string, unknown> {
   id: string
@@ -65,6 +66,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
   const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false)
   const [podcastUrl, setPodcastUrl] = useState<string | null>(null)
   const { playPodcast, currentUrl, isPlaying, togglePlayPause } = usePodcast()
+  const router = useRouter()
   
   const isThisPodcastPlaying = isPlaying && currentUrl === podcastUrl
 
@@ -362,7 +364,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                 className="flex-1 text-xs h-8 px-3 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 border border-emerald-500/20"
                 onClick={(e) => {
                   e.stopPropagation()
-                  window.location.href = `/documents/${id}?rootId=${rootId}`
+                  router.push(`/documents/${id}?rootId=${rootId}`)
                 }}
                 title="Read Document"
               >
