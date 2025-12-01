@@ -9,6 +9,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import OpenAI from 'openai'
 import { search, SafeSearchType } from 'duck-duck-scrape'
+import { checkAndIncrementUsage } from '@/lib/token-usage'
 
 const openaiClient = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -16,8 +17,8 @@ const openaiClient = new OpenAI({
 
 async function generateInitialTree(supabase: SupabaseClient, rootId: string, query: string, userId: string) {
   try {
-    const { object } = await generateObject({
-      model: openai('gpt-4o-mini'),
+    const { object, usage } = await generateObject({
+      model: openai('gpt-5-mini'),
       system: `You are a world-class curriculum designer and subject matter expert. Your task is to create an optimal learning tree that transforms any topic into a structured, pedagogically-sound knowledge map.
 
 PRINCIPLES:
@@ -49,6 +50,10 @@ Generate a well-structured knowledge tree that would help someone master this to
         }))
       })
     })
+
+    if (usage) {
+      await checkAndIncrementUsage(userId, usage.totalTokens, 'gpt-5-mini')
+    }
 
     for (const subtopic of object.subtopics) {
       const { data: l1Node, error: l1Error } = await supabase
@@ -94,6 +99,9 @@ export async function createTopic(query: string, parentId: string | null = null)
   if (!user) {
     redirect('/auth/signin')
   }
+
+  // Check limits
+  await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
 
   if (!query) {
     throw new Error('Query is required')
@@ -160,14 +168,17 @@ export async function generateTopicContent(id: string, type: 'subtopic' | 'expla
     redirect('/auth/signin')
   }
 
+  // Check limits
+  await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
+
   const path = await getTopicPath(supabase, id)
   const contextString = path.join(' > ')
   const currentTopic = path[path.length - 1]
 
   if (type === 'subtopic') {
     try {
-      const { object } = await generateObject({
-        model: openai('gpt-4o-mini'),
+      const { object, usage } = await generateObject({
+        model: openai('gpt-5-mini'),
         system: `You are an expert curriculum designer specializing in breaking down complex topics into learnable components.
 
 Your task is to generate subtopics that:
@@ -194,6 +205,10 @@ These subtopics should help someone who has followed the learning path above to 
         })
       })
 
+      if (usage) {
+        await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+      }
+
       const { error } = await supabase
         .from('documents')
         .insert(
@@ -213,11 +228,15 @@ These subtopics should help someone who has followed the learning path above to 
     }
   } else {
     try {
-      const { text } = await generateText({
+      const { text, usage } = await generateText({
         model: openai('gpt-5.1'),
         system: "You are an expert academic researcher and writer. Generate a highly comprehensive, detailed, and in-depth article about the requested topic. The content should be extensive, covering history, key concepts, theoretical foundations, practical applications, current state, future implications, and relevant examples. Use clear markdown formatting with multiple headers, lists, and code blocks where appropriate. Aim for a deep dive into the subject matter that provides significant value and insight.",
         prompt: `Context path: ${contextString}\n\nGenerate a comprehensive article for: ${currentTopic}`
       })
+
+      if (usage) {
+        await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5.1')
+      }
 
       const { error } = await supabase
         .from('documents')
@@ -345,9 +364,11 @@ export async function togglePublic(id: string, isPublic: boolean) {
 
   if (error) throw error
 
-  // Generate description if making public and no content exists
+      // Generate description if making public and no content exists
   if (isPublic && (!doc.content || doc.content.length < 20)) {
     try {
+      await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
+
       // Fetch immediate children for context
       const { data: children } = await supabase
         .from('documents')
@@ -357,8 +378,8 @@ export async function togglePublic(id: string, isPublic: boolean) {
 
       const childrenTopics = children?.map(c => c.query).join(', ') || ''
       
-      const { text: description } = await generateText({
-        model: openai('gpt-4o-mini'),
+      const { text: description, usage } = await generateText({
+        model: openai('gpt-5-mini'),
         system: 'You are an expert curator of knowledge trees. Your goal is to write compelling, concise descriptions.',
         prompt: `Generate a short, engaging description (max 250 characters) for a public knowledge tree titled "${doc.query}".
                  
@@ -366,6 +387,10 @@ export async function togglePublic(id: string, isPublic: boolean) {
                  
                  The description should explain what the user will learn and why it's interesting. Do not use hashtags or emojis.`
       })
+
+      if (usage) {
+        await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+      }
 
       if (description) {
         await supabase
@@ -389,9 +414,11 @@ export async function generateQuiz(documentId: string, content: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
+  await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
+
   try {
-    const { object } = await generateObject({
-      model: openai('gpt-4o-mini'),
+    const { object, usage } = await generateObject({
+      model: openai('gpt-5-mini'),
       system: `You are an expert educator and assessment designer. Your task is to create a comprehensive quiz that thoroughly tests understanding of the provided content.
 
 QUIZ DESIGN PRINCIPLES:
@@ -423,6 +450,10 @@ Generate 10-15 questions to ensure comprehensive coverage of the material.`,
         }))
       })
     })
+
+    if (usage) {
+      await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+    }
 
     const { data: quizData, error: quizError } = await supabase
       .from('quizzes')
@@ -610,6 +641,8 @@ export async function generateFlashcards(documentId: string, content: string, fo
   
   if (!user) throw new Error('Unauthorized')
 
+  await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
+
   // Check if flashcards already exist (unless forcing regeneration)
   if (!forceRegenerate) {
     const { data: existing } = await supabase
@@ -624,8 +657,8 @@ export async function generateFlashcards(documentId: string, content: string, fo
   }
 
   try {
-    const { object } = await generateObject({
-      model: openai('gpt-4o-mini'),
+    const { object, usage } = await generateObject({
+      model: openai('gpt-5-mini'),
       system: `You are an expert educator and instructional designer. Create a comprehensive set of flashcards to help students master the key concepts from the provided educational content.
 
 FLASHCARD DESIGN PRINCIPLES:
@@ -655,6 +688,10 @@ ${content}`,
         }))
       })
     })
+
+    if (usage) {
+      await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+    }
 
     // Delete existing flashcards if regenerating
     if (forceRegenerate) {
@@ -768,6 +805,8 @@ export async function generateResources(documentId: string, topic: string, conte
   
   if (!user) throw new Error('Unauthorized')
 
+  await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
+
   // Check if resources already exist
   const { data: existing } = await supabase
     .from('resources')
@@ -813,8 +852,8 @@ export async function generateResources(documentId: string, topic: string, conte
       searchContext = "Web search failed. Please generate resources based on your internal knowledge. Ensure links are valid and well-known.";
     }
 
-    const { object } = await generateObject({
-      model: openai('gpt-4o-mini'),
+    const { object, usage } = await generateObject({
+      model: openai('gpt-5-mini'),
       system: "You are a helpful research assistant. Your goal is to find high-quality learning resources for the given topic. Use the provided search results to generate a curated list of YouTube videos, articles, books, and influencers. Prioritize using the actual links and titles found in the search results to ensure accuracy.",
       prompt: `Find learning resources for the topic: "${topic}". \n\nContext/Content: ${content ? content.substring(0, 500) : 'No content provided'}\n\nWeb Search Results:\n${searchContext}`,
       schema: z.object({
@@ -841,6 +880,10 @@ export async function generateResources(documentId: string, topic: string, conte
         })).describe("List of 3-5 key influencers or experts in this field")
       })
     })
+
+    if (usage) {
+      await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+    }
 
     const { error } = await supabase
       .from('resources')
@@ -876,6 +919,8 @@ export async function generateSummary(documentId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
+  await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
+
   // Fetch document content
   const { data: document } = await supabase
     .from('documents')
@@ -889,11 +934,15 @@ export async function generateSummary(documentId: string) {
   if (!document.content) return { success: false, error: 'No content to summarize' }
 
   try {
-    const { text } = await generateText({
-      model: openai('gpt-4o-mini'),
+    const { text, usage } = await generateText({
+      model: openai('gpt-5-mini'),
       system: "You are an expert summarizer. Create a concise but comprehensive summary of the provided text in HTML format. Use appropriate tags like <p>, <ul>, <li>, <strong>, <h3> etc. Do not include <html>, <head>, or <body> tags, just the content body. Do NOT wrap the output in markdown code blocks (like ```html). Return raw HTML only.",
       prompt: `Summarize the following content:\n\n${document.content}`,
     })
+
+    if (usage) {
+      await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+    }
 
     // Clean up any potential markdown code blocks
     const cleanText = text.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '')

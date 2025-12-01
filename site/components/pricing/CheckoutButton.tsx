@@ -6,9 +6,10 @@ import { useState } from 'react';
 interface CheckoutButtonProps {
   priceId: string;
   className?: string;
+  label?: string;
 }
 
-export default function CheckoutButton({ priceId, className }: CheckoutButtonProps) {
+export default function CheckoutButton({ priceId, className, label = 'Upgrade to Pro' }: CheckoutButtonProps) {
   const [loading, setLoading] = useState(false);
 
   const handleCheckout = async () => {
@@ -42,7 +43,7 @@ export default function CheckoutButton({ priceId, className }: CheckoutButtonPro
       disabled={loading} 
       className={className}
     >
-      {loading ? 'Processing...' : 'Upgrade to Pro'}
+      {loading ? 'Processing...' : label}
     </Button>
   );
 }

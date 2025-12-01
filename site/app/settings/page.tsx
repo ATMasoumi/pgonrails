@@ -21,6 +21,8 @@ import UpdatePassword from "@/components/settings/UpdatePassword";
 import LiveDisplayName from "./LiveDisplayName";
 import Link from "next/link";
 import ManageSubscriptionButton from "@/components/settings/ManageSubscriptionButton";
+import TokenUsage from "@/components/settings/TokenUsage";
+import { getTokenUsageWithDetails } from "@/lib/token-usage";
 
 export default async function Settings() {
   const supabase = await createClient()
@@ -31,6 +33,8 @@ export default async function Settings() {
     .select('*')
     .in('status', ['trialing', 'active'])
     .maybeSingle()
+
+  const usageDetails = data?.user ? await getTokenUsageWithDetails(data.user.id) : null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -83,6 +87,15 @@ export default async function Settings() {
                     </Link>
                 )}
             </div>
+            {usageDetails && (
+                <div className="mt-6">
+                    <TokenUsage 
+                        used={usageDetails.used} 
+                        limit={usageDetails.limit} 
+                        resetDate={usageDetails.resetDate} 
+                    />
+                </div>
+            )}
         </section>
 
         <section className="mb-8 sm:mb-10 md:mb-20 w-full max-w-100">

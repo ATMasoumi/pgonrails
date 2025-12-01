@@ -12,17 +12,26 @@ import ManageSubscriptionButton from '@/components/settings/ManageSubscriptionBu
 export const dynamic = 'force-dynamic';
 
 export default async function PricingPage() {
-  const priceId = 'price_1SYQz2IaanXwtACFujUP9lee';
-  let price: Stripe.Price | null = null;
-  let product: Stripe.Product | null = null;
+  const standardPriceId = 'price_1SYQz2IaanXwtACFujUP9lee';
+  const proPriceId = 'price_1SZdsjIaanXwtACFiRtnpJjZ';
+
+  let standardPrice: Stripe.Price | null = null;
+  let standardProduct: Stripe.Product | null = null;
+  let proPrice: Stripe.Price | null = null;
+  let proProduct: Stripe.Product | null = null;
 
   try {
-    price = await stripe.prices.retrieve(priceId, {
-      expand: ['product']
-    });
-    product = price.product as Stripe.Product;
+    const [standard, pro] = await Promise.all([
+      stripe.prices.retrieve(standardPriceId, { expand: ['product'] }),
+      stripe.prices.retrieve(proPriceId, { expand: ['product'] })
+    ]);
+    
+    standardPrice = standard;
+    standardProduct = standard.product as Stripe.Product;
+    proPrice = pro;
+    proProduct = pro.product as Stripe.Product;
   } catch (error) {
-    console.error('Error fetching price:', error);
+    console.error('Error fetching prices:', error);
   }
 
   const supabase = await createClient();
@@ -59,10 +68,15 @@ export default async function PricingPage() {
     }).format(amount / 100);
   };
 
-  const priceString = price ? formatPrice(price.unit_amount, price.currency) : '$10';
-  const interval = price?.recurring?.interval || 'month';
-  const productName = product?.name || 'Pro';
-  const productDescription = product?.description || 'For serious developers and teams';
+  const standardPriceString = standardPrice ? formatPrice(standardPrice.unit_amount, standardPrice.currency) : '$20';
+  const standardInterval = standardPrice?.recurring?.interval || 'month';
+  const standardName = standardProduct?.name || 'Pro';
+  const standardDescription = standardProduct?.description || 'For serious developers and teams';
+
+  const proPriceString = proPrice ? formatPrice(proPrice.unit_amount, proPrice.currency) : '$40';
+  const proInterval = proPrice?.recurring?.interval || 'month';
+  const proName = proProduct?.name || 'Max';
+  const proDescription = proProduct?.description || 'For power users who need more';
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white font-sans selection:bg-pink-500/30">
@@ -78,7 +92,7 @@ export default async function PricingPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto">
           {/* Hobby Plan */}
           <div className="rounded-3xl p-8 bg-[#111] border border-white/10 flex flex-col hover:border-white/20 transition-colors">
             <div className="mb-8">
@@ -120,18 +134,15 @@ export default async function PricingPage() {
             </div>
           </div>
 
-          {/* Pro Plan */}
-          <div className="rounded-3xl p-8 bg-[#111] border border-pink-500/50 flex flex-col relative shadow-[0_0_50px_-12px_rgba(236,72,153,0.3)]">
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-pink-500 to-purple-500 text-white px-4 py-1 rounded-full text-sm font-medium">
-              Most Popular
+          {/* Standard Plan */}
+          <div className="rounded-3xl p-8 bg-[#111] border border-white/10 flex flex-col hover:border-pink-500/50 transition-colors">
+            <div className="mb-8">
+              <h3 className="text-2xl font-bold mb-2">{standardName}</h3>
+              <p className="text-gray-400">{standardDescription}</p>
             </div>
             <div className="mb-8">
-              <h3 className="text-2xl font-bold mb-2">{productName}</h3>
-              <p className="text-gray-400">{productDescription}</p>
-            </div>
-            <div className="mb-8">
-              <span className="text-4xl font-bold">{priceString}</span>
-              <span className="text-gray-400">/{interval}</span>
+              <span className="text-4xl font-bold">{standardPriceString}</span>
+              <span className="text-gray-400">/{standardInterval}</span>
             </div>
             {isSubscribed ? (
               <ManageSubscriptionButton 
@@ -141,8 +152,9 @@ export default async function PricingPage() {
               </ManageSubscriptionButton>
             ) : (
               <CheckoutButton 
-                priceId={priceId} 
-                className="w-full mb-8 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white border-0"
+                priceId={standardPriceId} 
+                className="w-full mb-8 bg-white/10 hover:bg-white/20 text-white border-0"
+                label={`Upgrade to ${standardName}`}
               />
             )}
             <div className="space-y-4 flex-1">
@@ -152,16 +164,58 @@ export default async function PricingPage() {
                   <Check className="w-5 h-5 text-pink-500" /> Unlimited Knowledge Trees
                 </li>
                 <li className="flex items-center gap-3 text-gray-300">
-                  <Check className="w-5 h-5 text-pink-500" /> Advanced AI Models (GPT-4)
+                  <Check className="w-5 h-5 text-pink-500" /> Powered by GPT-5 Mini
                 </li>
                 <li className="flex items-center gap-3 text-gray-300">
                   <Check className="w-5 h-5 text-pink-500" /> Podcast Generation
                 </li>
                 <li className="flex items-center gap-3 text-gray-300">
-                  <Check className="w-5 h-5 text-pink-500" /> 10GB Document Storage
+                  <Check className="w-5 h-5 text-pink-500" /> 2,000,000 Credits / month
                 </li>
                 <li className="flex items-center gap-3 text-gray-300">
                   <Check className="w-5 h-5 text-pink-500" /> Priority Support
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Pro Plan */}
+          <div className="rounded-3xl p-8 bg-[#111] border border-pink-500/50 flex flex-col relative shadow-[0_0_50px_-12px_rgba(236,72,153,0.3)]">
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-pink-500 to-purple-500 text-white px-4 py-1 rounded-full text-sm font-medium">
+              Most Popular
+            </div>
+            <div className="mb-8">
+              <h3 className="text-2xl font-bold mb-2">{proName}</h3>
+              <p className="text-gray-400">{proDescription}</p>
+            </div>
+            <div className="mb-8">
+              <span className="text-4xl font-bold">{proPriceString}</span>
+              <span className="text-gray-400">/{proInterval}</span>
+            </div>
+            {isSubscribed ? (
+              <ManageSubscriptionButton 
+                className="w-full mb-8 bg-white/5 border-white/10 hover:bg-white/10 text-white"
+              >
+                Manage Subscription
+              </ManageSubscriptionButton>
+            ) : (
+              <CheckoutButton 
+                priceId={proPriceId} 
+                className="w-full mb-8 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white border-0"
+                label={`Upgrade to ${proName}`}
+              />
+            )}
+            <div className="space-y-4 flex-1">
+              <p className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Everything in {standardName}, plus</p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-gray-300">
+                  <Check className="w-5 h-5 text-pink-500" /> 5,000,000 Credits / month
+                </li>
+                <li className="flex items-center gap-3 text-gray-300">
+                  <Check className="w-5 h-5 text-pink-500" /> Access to GPT-5.1 for Deep Research
+                </li>
+                <li className="flex items-center gap-3 text-gray-300">
+                  <Check className="w-5 h-5 text-pink-500" /> Dedicated Support
                 </li>
               </ul>
             </div>
@@ -171,6 +225,14 @@ export default async function PricingPage() {
         <div className="mt-20 text-center">
           <h2 className="text-2xl font-bold mb-4">Frequently Asked Questions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left mt-8">
+            <div className="p-6 rounded-2xl bg-white/5">
+              <h3 className="font-bold mb-2">How are credits calculated?</h3>
+              <p className="text-gray-400">
+                Credits are consumed based on the model used:
+                <br />• <strong>GPT-5 Mini</strong>: 1 credit per token
+                <br />• <strong>GPT-5.1</strong>: 12 credits per token
+              </p>
+            </div>
             <div className="p-6 rounded-2xl bg-white/5">
               <h3 className="font-bold mb-2">Can I cancel anytime?</h3>
               <p className="text-gray-400">Yes, you can cancel your subscription at any time. You'll continue to have access until the end of your billing period.</p>

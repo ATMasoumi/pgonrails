@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { openai } from '@ai-sdk/openai'
 import { streamText } from 'ai'
 import { SupabaseClient } from '@supabase/supabase-js'
+import { checkAndIncrementUsage } from '@/lib/token-usage'
 
 export const runtime = 'edge'
 
@@ -37,6 +38,12 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return new Response('Unauthorized', { status: 401 })
+  }
+
+  try {
+    await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
+  } catch (error: any) {
+    return new Response(error.message, { status: 403 })
   }
 
   // Save the user's message (the last one)
@@ -78,10 +85,10 @@ export async function POST(req: Request) {
     Keep the tone professional and educational.`
 
   const result = streamText({
-    model: openai('gpt-4o-mini'),
+    model: openai('gpt-5-mini'),
     messages,
     system: systemMessage,
-    onFinish: async ({ text }) => {
+    onFinish: async ({ text, usage }) => {
       if (text) {
         await supabase.from('chat_messages').insert({
           document_id: topicId,
@@ -89,6 +96,9 @@ export async function POST(req: Request) {
           role: 'assistant',
           content: text
         })
+      }
+      if (usage) {
+        await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
       }
     }
   })
