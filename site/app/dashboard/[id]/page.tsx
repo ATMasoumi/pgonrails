@@ -82,7 +82,7 @@ export default async function TopicDetailsPage({ params }: { params: Promise<{ i
             </div>
           </div>
 
-          <TopicActions document={rootTopic} />
+          <TopicActions />
         </div>
       </div>
 

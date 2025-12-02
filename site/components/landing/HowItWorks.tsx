@@ -20,7 +20,7 @@ export default function HowItWorks() {
     {
       icon: Expand,
       title: "3. Explore, Expand, and Export Your Learning",
-      description: "Tap any branch to expand deeper, read explanations, generate documents, or share the full tree.",
+      description: "Tap any branch to expand deeper, read explanations, or generate documents.",
       gradient: "from-pink-500 to-rose-500"
     }
   ]

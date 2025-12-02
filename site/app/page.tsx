@@ -1,23 +1,12 @@
 import Hero from "@/components/landing/Hero"
 import LandingNavbar from "@/components/landing/LandingNavbar"
 import Features from "@/components/landing/Features"
-import ExampleTrees from "@/components/landing/ExampleTrees"
 import SocialProof from "@/components/landing/SocialProof"
 import FinalCTA from "@/components/landing/FinalCTA"
-import { createClient } from "@/lib/supabase/server"
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const supabase = await createClient()
-  const { data: trees } = await supabase
-    .from('documents')
-    .select('id, query, content')
-    .eq('is_public', true)
-    .is('parent_id', null)
-    .order('published_at', { ascending: false })
-    .limit(4)
-
   return (
     <div className="min-h-screen bg-[#020202] text-white font-sans selection:bg-purple-500/30 selection:text-purple-200">
       <div className="fixed inset-0 z-0 pointer-events-none">
@@ -29,7 +18,6 @@ export default async function Home() {
         <LandingNavbar />
         <Hero />
         <Features />
-        <ExampleTrees trees={trees || []} />
         <SocialProof />
         <FinalCTA />
         

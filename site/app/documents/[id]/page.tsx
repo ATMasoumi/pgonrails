@@ -24,11 +24,10 @@ export default async function DocumentPage({
     notFound()
   }
 
-  // Check access: either owner or public
+  // Check access: must be owner
   const isOwner = user && document.user_id === user.id
-  const isPublic = document.is_public
 
-  if (!isOwner && !isPublic) {
+  if (!isOwner) {
     if (!user) {
       redirect('/signin')
     } else {
@@ -38,5 +37,5 @@ export default async function DocumentPage({
 
   console.log('Document data:', document)
 
-  return <DocumentView document={document} rootId={rootId} readOnly={!isOwner} />
+  return <DocumentView document={document} rootId={rootId} />
 }

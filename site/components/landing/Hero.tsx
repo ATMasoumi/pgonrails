@@ -195,7 +195,7 @@ export default function Hero() {
             transition={{ duration: 0.6, delay: 0.45 }}
             className="text-xl text-gray-400 mb-10 max-w-2xl"
           >
-            Turn any topic into a clear, expandable visual tree with AI. Learn faster, think better, and share interactive mind-maps.
+            Turn any topic into a clear, expandable visual tree with AI. Learn faster, think better, and explore interactive mind-maps.
           </motion.p>
           
           <div className="flex flex-col sm:flex-row gap-4">

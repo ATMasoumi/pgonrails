@@ -46,9 +46,7 @@ export async function updateSession(request: NextRequest) {
         !request.nextUrl.pathname.startsWith('/signup') &&
         !request.nextUrl.pathname.startsWith('/forgot-password') &&
         !request.nextUrl.pathname.startsWith('/error') &&
-        !request.nextUrl.pathname.startsWith('/share') &&
         !request.nextUrl.pathname.startsWith('/api/stripe/webhook') &&
-        !request.nextUrl.pathname.startsWith('/hall') &&
         !request.nextUrl.pathname.startsWith('/documents') &&
         !request.nextUrl.pathname.startsWith('/pricing') &&
         !(request.nextUrl.pathname === '/')
