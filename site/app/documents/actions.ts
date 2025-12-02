@@ -668,7 +668,7 @@ export async function getPodcast(documentId: string) {
       if (url.origin !== publicUrlObj.origin) {
         data.audio_url = data.audio_url.replace(url.origin, publicUrlObj.origin)
       }
-    } catch (e) {
+    } catch {
       // Ignore URL parsing errors
     }
   }

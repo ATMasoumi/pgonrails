@@ -42,8 +42,9 @@ export async function POST(req: Request) {
 
   try {
     await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
-  } catch (error: any) {
-    return new Response(error.message, { status: 403 })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'An error occurred'
+    return new Response(errorMessage, { status: 403 })
   }
 
   // Save the user's message (the last one)
