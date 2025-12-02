@@ -50,6 +50,7 @@ export default function UpdateDisplayName({ initialValue }: Props) {
 
     return (
         <Input
+            className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus-visible:ring-blue-500 transition-all focus:bg-white/10"
             ref={setInputRef}
             placeholder="Edit your display name..."
             value={value}

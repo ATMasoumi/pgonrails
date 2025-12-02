@@ -148,22 +148,15 @@ export async function signInWithGithub() {
 
 
 export async function deleteAccount() {
-    const supabase = await createAdminClient()
+    const supabase = await createClient()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-    // calling getSession() here because middleware runs getUser() before every action/route/page,
-    // ensuring the session (and the user contained within) in the headers is up-to-date.
-    const sessionResult = await supabase.auth.getSession()
-
-    if (sessionResult.error) {
-        const { name, status, message } = sessionResult.error
-        redirect(`/settings?error=${name}&error_code=${status}&error_description=${message}`)
-    }
-
-    if (!sessionResult.data.session?.user) {
+    if (userError || !user) {
         redirect("/settings?error=Account+not+found.&error_code=404&error_description=Your+account+could+not+be+deleted+because+there+was+an+issue+finding+it+on+our+servers.+Please+try+again,+or+contact+an+administrator+if+the+issue+persists.")
     }
 
-    const deletionResult = await supabase.auth.admin.deleteUser(sessionResult.data.session?.user.id)
+    const supabaseAdmin = await createAdminClient()
+    const deletionResult = await supabaseAdmin.auth.admin.deleteUser(user.id)
 
     if (deletionResult.error) {
         const { name, status, message } = deletionResult.error

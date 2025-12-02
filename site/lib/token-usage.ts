@@ -3,19 +3,23 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 // TODO: Replace with your actual Stripe Price IDs
 const PLAN_LIMITS: Record<string, number> = {
-  'price_1SYQz2IaanXwtACFujUP9lee': 2000000, // $20 plan
-  'price_1SZdsjIaanXwtACFiRtnpJjZ': 5000000, // $40 plan
+  'price_1SYQz2IaanXwtACFujUP9lee': 2500000, // $20 plan ($5 worth of tokens)
+  'price_1SZdsjIaanXwtACFiRtnpJjZ': 5000000, // $40 plan ($10 worth of tokens)
 }
-const DEFAULT_LIMIT = 10000; // Free/Trial limit
+const DEFAULT_LIMIT = 100000; // Free/Trial limit (approx $0.04/user/mo cost to you)
 
 const MODEL_MULTIPLIERS: Record<string, number> = {
   'gpt-4o-mini': 0.2, // Legacy
   'gpt-5-mini': 1,    // Base unit (1 credit = 1 token)
   'gpt-4o': 3,        // ~3x more expensive than 5-mini
   'gpt-5.1': 12,      // ~12x more expensive than 5-mini
+  'tts-1': 7.5,       // $0.015/1k chars vs $0.002/1k tokens (approx 7.5x)
 };
 
 export async function checkAndIncrementUsage(userId: string, tokensToAdd: number = 0, model: string = 'gpt-4o-mini') {
+  // Note: 'tokensToAdd' represents the billing unit count. 
+  // For GPT models, this is tokens. For TTS, this is characters.
+  console.log(`[TokenUsage] Processing request - User: ${userId}, Units: ${tokensToAdd}, Model: ${model}`)
   const supabase = await createAdminClient()
   
   // Calculate weighted usage based on model cost
@@ -29,11 +33,6 @@ export async function checkAndIncrementUsage(userId: string, tokensToAdd: number
     .eq('user_id', userId)
     .in('status', ['trialing', 'active'])
     .maybeSingle()
-
-  if (!subscription) {
-    // Enforce subscription for AI usage
-    throw new Error('Active subscription required.')
-  }
 
   // 2. Get Usage
   let { data: usage } = await supabase
@@ -53,11 +52,24 @@ export async function checkAndIncrementUsage(userId: string, tokensToAdd: number
   }
 
   // 3. Check Reset
-  const periodStart = new Date(subscription.current_period_start)
-  const lastReset = new Date(usage.last_reset_at)
+  let shouldReset = false;
+  if (subscription) {
+    const periodStart = new Date(subscription.current_period_start)
+    const lastReset = new Date(usage.last_reset_at)
+    if (periodStart > lastReset) {
+      shouldReset = true
+    }
+  } else {
+    // Free tier: reset every 30 days
+    const lastReset = new Date(usage.last_reset_at)
+    const now = new Date()
+    const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000
+    if (now.getTime() - lastReset.getTime() > thirtyDaysInMs) {
+      shouldReset = true
+    }
+  }
 
-  // If the billing period started AFTER the last reset, we need to reset.
-  if (periodStart > lastReset) {
+  if (shouldReset) {
     const { data: resetUsage, error } = await supabase
       .from('token_usage')
       .update({ tokens_used: 0, last_reset_at: new Date().toISOString() })
@@ -69,7 +81,8 @@ export async function checkAndIncrementUsage(userId: string, tokensToAdd: number
   }
 
   // 4. Check Limit
-  const limit = PLAN_LIMITS[subscription.price_id] || DEFAULT_LIMIT
+  const limit = subscription ? (PLAN_LIMITS[subscription.price_id] || DEFAULT_LIMIT) : DEFAULT_LIMIT
+  
   if (usage.tokens_used + weightedTokens > limit) {
     throw new Error('Token limit exceeded. Please upgrade your plan or wait for the next billing cycle.')
   }
@@ -83,10 +96,20 @@ export async function checkAndIncrementUsage(userId: string, tokensToAdd: number
     if (error) throw error
   }
   
+  // Calculate reset date
+  let resetDate: Date
+  if (subscription) {
+    resetDate = new Date(subscription.current_period_start)
+    resetDate.setMonth(resetDate.getMonth() + 1)
+  } else {
+    resetDate = new Date(usage.last_reset_at)
+    resetDate.setDate(resetDate.getDate() + 30)
+  }
+  
   return {
     used: usage.tokens_used + weightedTokens,
     limit,
-    resetDate: new Date(new Date(subscription.current_period_start).setMonth(new Date(subscription.current_period_start).getMonth() + 1)) // Approx next billing date
+    resetDate
   }
 }
 

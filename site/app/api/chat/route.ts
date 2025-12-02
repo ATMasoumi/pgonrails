@@ -98,7 +98,10 @@ export async function POST(req: Request) {
         })
       }
       if (usage) {
+        console.log(`[Chat] Token usage: ${usage.totalTokens} tokens (Model: gpt-5-mini)`)
         await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+      } else {
+        console.log('[Chat] No token usage returned from AI provider')
       }
     }
   })

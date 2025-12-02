@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { openai } from '@ai-sdk/openai'
@@ -10,6 +10,7 @@ import { z } from 'zod'
 import OpenAI from 'openai'
 import { search, SafeSearchType } from 'duck-duck-scrape'
 import { checkAndIncrementUsage } from '@/lib/token-usage'
+import { getUserSubscriptionStatus } from '@/lib/subscription'
 
 const openaiClient = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -52,7 +53,10 @@ Generate a well-structured knowledge tree that would help someone master this to
     })
 
     if (usage) {
+      console.log(`[Initial Tree] Token usage: ${usage.totalTokens} tokens (Model: gpt-5-mini)`)
       await checkAndIncrementUsage(userId, usage.totalTokens, 'gpt-5-mini')
+    } else {
+      console.log('[Initial Tree] No token usage returned from AI provider')
     }
 
     for (const subtopic of object.subtopics) {
@@ -160,20 +164,15 @@ async function getTopicPath(supabase: SupabaseClient, startId: string) {
   return path
 }
 
-export async function generateTopicContent(id: string, type: 'subtopic' | 'explanation') {
-  const supabase = await createClient()
-  
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    redirect('/auth/signin')
-  }
-
-  // Check limits
-  await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
-
-  const path = await getTopicPath(supabase, id)
-  const contextString = path.join(' > ')
-  const currentTopic = path[path.length - 1]
+async function processTopicGeneration(
+  userId: string,
+  id: string,
+  type: 'subtopic' | 'explanation',
+  contextString: string,
+  currentTopic: string,
+  isPro: boolean
+) {
+  const supabase = await createAdminClient()
 
   if (type === 'subtopic') {
     try {
@@ -206,14 +205,17 @@ These subtopics should help someone who has followed the learning path above to 
       })
 
       if (usage) {
-        await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+        console.log(`[Subtopics] Token usage: ${usage.totalTokens} tokens (Model: gpt-5-mini)`)
+        await checkAndIncrementUsage(userId, usage.totalTokens, 'gpt-5-mini')
+      } else {
+        console.log('[Subtopics] No token usage returned from AI provider')
       }
 
       const { error } = await supabase
         .from('documents')
         .insert(
           object.subtopics.map((topic: string) => ({
-            user_id: user.id,
+            user_id: userId,
             query: topic,
             parent_id: id,
             content: null
@@ -224,18 +226,21 @@ These subtopics should help someone who has followed the learning path above to 
       
     } catch (error) {
       console.error('Error generating subtopics:', error)
-      throw error
     }
   } else {
     try {
+      const modelName = isPro ? 'gpt-5.1' : 'gpt-5-mini'
       const { text, usage } = await generateText({
-        model: openai('gpt-5.1'),
+        model: openai(modelName),
         system: "You are an expert academic researcher and writer. Generate a highly comprehensive, detailed, and in-depth article about the requested topic. The content should be extensive, covering history, key concepts, theoretical foundations, practical applications, current state, future implications, and relevant examples. Use clear markdown formatting with multiple headers, lists, and code blocks where appropriate. Aim for a deep dive into the subject matter that provides significant value and insight.",
         prompt: `Context path: ${contextString}\n\nGenerate a comprehensive article for: ${currentTopic}`
       })
 
       if (usage) {
-        await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5.1')
+        console.log(`[Content Generation] Token usage: ${usage.totalTokens} tokens (Model: ${modelName})`)
+        await checkAndIncrementUsage(userId, usage.totalTokens, modelName)
+      } else {
+        console.log('[Content Generation] No token usage returned from AI provider')
       }
 
       const { error } = await supabase
@@ -247,9 +252,31 @@ These subtopics should help someone who has followed the learning path above to 
 
     } catch (error) {
       console.error('Error generating content:', error)
-      throw error
     }
   }
+}
+
+export async function generateTopicContent(id: string, type: 'subtopic' | 'explanation') {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/auth/signin')
+  }
+  // Check limits
+  await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
+
+  const { isPro } = await getUserSubscriptionStatus()
+
+  const path = await getTopicPath(supabase, id)
+  const contextString = path.join(' > ')
+  const currentTopic = path[path.length - 1]
+
+  // Start generation in background (fire and forget)
+  processTopicGeneration(user.id, id, type, contextString, currentTopic, isPro)
+    .catch(err => console.error('Background generation error:', err))
+
+  return { success: true, message: "Generation started" }
 }
 
 export async function deleteTopic(id: string) {
@@ -389,7 +416,10 @@ export async function togglePublic(id: string, isPublic: boolean) {
       })
 
       if (usage) {
+        console.log(`[Description] Token usage: ${usage.totalTokens} tokens (Model: gpt-5-mini)`)
         await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+      } else {
+        console.log('[Description] No token usage returned from AI provider')
       }
 
       if (description) {
@@ -452,7 +482,10 @@ Generate 10-15 questions to ensure comprehensive coverage of the material.`,
     })
 
     if (usage) {
+      console.log(`[Quiz] Token usage: ${usage.totalTokens} tokens (Model: gpt-5-mini)`)
       await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+    } else {
+      console.log('[Quiz] No token usage returned from AI provider')
     }
 
     const { data: quizData, error: quizError } = await supabase
@@ -545,11 +578,19 @@ export async function generatePodcast(documentId: string) {
     throw new Error('Document not found or has no content')
   }
 
+  const input = document.content.substring(0, 4096)
+  const charCount = input.length
+
+  // OpenAI TTS is billed by character, not token.
+  // The API does not return a usage field, so we calculate cost based on input length.
+  console.log(`[Podcast] Token usage: ${charCount} characters (Model: tts-1)`)
+  await checkAndIncrementUsage(user.id, charCount, 'tts-1')
+
   // Generate audio
   const mp3 = await openaiClient.audio.speech.create({
     model: "tts-1",
     voice: "alloy",
-    input: document.content.substring(0, 4096), // OpenAI limit is 4096 chars
+    input, // OpenAI limit is 4096 chars
   })
 
   const buffer = Buffer.from(await mp3.arrayBuffer())
@@ -690,7 +731,10 @@ ${content}`,
     })
 
     if (usage) {
+      console.log(`[Flashcards] Token usage: ${usage.totalTokens} tokens (Model: gpt-5-mini)`)
       await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+    } else {
+      console.log('[Flashcards] No token usage returned from AI provider')
     }
 
     // Delete existing flashcards if regenerating
@@ -882,7 +926,10 @@ export async function generateResources(documentId: string, topic: string, conte
     })
 
     if (usage) {
+      console.log(`[Resources] Token usage: ${usage.totalTokens} tokens (Model: gpt-5-mini)`)
       await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+    } else {
+      console.log('[Resources] No token usage returned from AI provider')
     }
 
     const { error } = await supabase
@@ -941,7 +988,10 @@ export async function generateSummary(documentId: string) {
     })
 
     if (usage) {
+      console.log(`[Summary] Token usage: ${usage.totalTokens} tokens (Model: gpt-5-mini)`)
       await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+    } else {
+      console.log('[Summary] No token usage returned from AI provider')
     }
 
     // Clean up any potential markdown code blocks

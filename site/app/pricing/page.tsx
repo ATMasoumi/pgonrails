@@ -170,7 +170,7 @@ export default async function PricingPage() {
                   <Check className="w-5 h-5 text-pink-500" /> Podcast Generation
                 </li>
                 <li className="flex items-center gap-3 text-gray-300">
-                  <Check className="w-5 h-5 text-pink-500" /> 2,000,000 Credits / month
+                  <Check className="w-5 h-5 text-pink-500" /> 2,500,000 Credits / month
                 </li>
                 <li className="flex items-center gap-3 text-gray-300">
                   <Check className="w-5 h-5 text-pink-500" /> Priority Support

@@ -29,6 +29,8 @@ interface TopicNodeData extends Record<string, unknown> {
   hasSummary?: boolean
   isGeneratingQuiz?: boolean
   isGeneratingFlashcards?: boolean
+  isGeneratingSubtopics?: boolean
+  isGeneratingExplanation?: boolean
   onToggleCollapse: () => void
   onOpenDocument: () => void
   onOpenNote: (id: string) => void
@@ -43,8 +45,7 @@ interface TopicNodeData extends Record<string, unknown> {
 type TopicNode = Node<TopicNodeData>
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary } = data
-  const [loadingType, setLoadingType] = useState<'subtopic' | 'explanation' | null>(null)
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, isGeneratingSubtopics, isGeneratingExplanation, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary } = data
   const [isDeleting, setIsDeleting] = useState(false)
 
   // Resources state
@@ -96,16 +97,15 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
   }
 
   const handleGenerate = async (type: 'subtopic' | 'explanation') => {
-    if (loadingType) return
-    setLoadingType(type)
+    if (isGeneratingSubtopics || isGeneratingExplanation) return
     try {
       await onGenerate(id, type)
     } catch (error) {
       console.error(error)
-    } finally {
-      setLoadingType(null)
     }
   }
+
+
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -219,7 +219,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
       <div 
         className={cn(
           "bg-[#0A0A0A]/90 backdrop-blur-md rounded-xl border border-white/10 shadow-lg transition-all duration-300 w-[360px] overflow-hidden hover:border-blue-500/50 hover:shadow-blue-500/10 hover:shadow-xl group-hover:scale-[1.02]",
-          loadingType ? "ring-2 ring-blue-500/20 animate-pulse" : ""
+          (isGeneratingSubtopics || isGeneratingExplanation) ? "ring-2 ring-blue-500/20 animate-pulse" : ""
         )}
       >
         <div className="p-4 flex flex-col gap-3">
@@ -381,10 +381,10 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                     e.stopPropagation()
                     handleGenerate('explanation')
                   }}
-                  disabled={!!loadingType}
+                  disabled={isGeneratingExplanation}
                   title="Learn More"
                 >
-                  {loadingType === 'explanation' ? (
+                  {isGeneratingExplanation ? (
                     <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                   ) : (
                     <FileText className="w-3.5 h-3.5 mr-1.5" />
@@ -404,9 +404,9 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
             onClick={handleNodeClick}
             className="bg-[#0A0A0A] rounded-full shadow-lg border border-white/10 p-1.5 hover:border-blue-500/50 hover:text-blue-400 text-gray-400 transition-all hover:scale-110 hover:shadow-blue-500/20"
             title={hasChildren ? (isCollapsed ? "Expand" : "Collapse") : "Generate subtopics"}
-            disabled={!!loadingType}
+            disabled={isGeneratingSubtopics}
           >
-            {loadingType === 'subtopic' ? (
+            {isGeneratingSubtopics ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (hasChildren && !isCollapsed) ? (
               <Minus className="w-4 h-4" />

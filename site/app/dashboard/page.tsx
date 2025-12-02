@@ -4,6 +4,7 @@ import Navbar from '@/components/Navbar'
 import { AddTopicForm } from '@/components/AddTopicForm'
 import { TopicCard } from '@/components/TopicCard'
 import { cn } from "@/lib/utils"
+import StripeSuccessHandler from '@/components/StripeSuccessHandler'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -45,6 +46,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#020202] text-white flex flex-col">
+      <StripeSuccessHandler />
       <Navbar />
       <main className={cn(
         "container mx-auto px-4 flex-1 flex flex-col",

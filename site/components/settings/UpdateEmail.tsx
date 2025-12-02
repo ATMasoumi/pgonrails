@@ -57,8 +57,9 @@ export default function UpdateEmail({ initialValue }: Props) {
     const canSubmit = emailRegex.test(email) && email !== initialValue
 
     return (
-        <>
+        <div className="flex gap-3">
             <Input
+                className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus-visible:ring-blue-500 transition-all focus:bg-white/10"
                 ref={setInputRef}
                 type="email"
                 placeholder="Edit your email address..."
@@ -67,14 +68,14 @@ export default function UpdateEmail({ initialValue }: Props) {
                 onKeyUp={handleKeyUp}
             />
             <Button
-                className="w-30 mt-2"
+                className={`shrink-0 transition-all duration-300 ${canSubmit ? "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "bg-white/5 text-gray-500 border-white/10 hover:bg-white/10"}`}
                 variant={canSubmit ? "default" : "outline"}
                 aria-disabled={!canSubmit || loading}
                 disabled={!canSubmit || loading}
                 onClick={updateEmail}
             >
-                {loading ? <Loader2 className="animate-spin" /> : "Change Email"}
+                {loading ? <Loader2 className="animate-spin h-4 w-4" /> : "Update"}
             </Button>
-        </>
+        </div>
     )
 }

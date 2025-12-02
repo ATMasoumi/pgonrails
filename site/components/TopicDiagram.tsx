@@ -13,6 +13,7 @@ import { FlashcardSidePanel, Flashcard } from './FlashcardSidePanel'
 import { ResourceData } from './ResourcesModal'
 import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz, generateFlashcards, getFlashcards, updateNodePosition } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase/client'
 
 const nodeWidth = 280
 const nodeHeight = 100
@@ -79,6 +80,101 @@ interface TopicDiagramProps {
 
 export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagramProps) {
   const router = useRouter()
+  const [generatingNodes, setGeneratingNodes] = useState<Record<string, 'subtopic' | 'explanation'>>({})
+
+  // Load generating state from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('generatingNodes')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        // Filter out nodes that have completed (e.g. content exists now)
+        // This is tricky because we don't have the doc state inside this effect easily without deps
+        // But we can just load it. The realtime subscription will clean it up if we get an UPDATE event.
+        // However, if the update happened while we were away, we might be stuck.
+        // So we should check against current documents.
+        
+        setGeneratingNodes(parsed)
+      } catch (e) {
+        console.error('Failed to parse generatingNodes from localStorage', e)
+      }
+    }
+  }, [])
+
+  // Clean up generatingNodes based on actual document state
+  useEffect(() => {
+    if (documents.length > 0) {
+        setGeneratingNodes(prev => {
+            const next = { ...prev }
+            let changed = false
+            
+            documents.forEach(doc => {
+                // If we think we are generating explanation, but content exists, stop.
+                if (next[doc.id] === 'explanation' && doc.content) {
+                    delete next[doc.id]
+                    changed = true
+                }
+                // If we think we are generating subtopics, but children exist, stop.
+                // (This is harder to check efficiently without a map, but let's try)
+                // Actually, the realtime INSERT event handles subtopics well.
+                // The main issue is explanation.
+            })
+            
+            return changed ? next : prev
+        })
+    }
+  }, [documents])
+
+  // Save generating state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('generatingNodes', JSON.stringify(generatingNodes))
+  }, [generatingNodes])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('documents-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'documents',
+        },
+        (payload) => {
+          router.refresh()
+
+          if (payload.eventType === 'UPDATE') {
+             const docId = payload.new.id
+             setGeneratingNodes(prev => {
+                if (prev[docId] === 'explanation') {
+                    const next = { ...prev }
+                    delete next[docId]
+                    return next
+                }
+                return prev
+             })
+          } else if (payload.eventType === 'INSERT') {
+             const parentId = payload.new.parent_id
+             if (parentId) {
+                 setGeneratingNodes(prev => {
+                    if (prev[parentId] === 'subtopic') {
+                        const next = { ...prev }
+                        delete next[parentId]
+                        return next
+                    }
+                    return prev
+                 })
+             }
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [router])
+
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [notePanelState, setNotePanelState] = useState<{
     isOpen: boolean
@@ -409,6 +505,8 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           hasSummary: !!doc.summary,
           isGeneratingQuiz: quizPanelState.isGenerating && quizPanelState.documentId === doc.id,
           isGeneratingFlashcards: flashcardPanelState.isGenerating && flashcardPanelState.documentId === doc.id,
+          isGeneratingSubtopics: generatingNodes[doc.id] === 'subtopic',
+          isGeneratingExplanation: generatingNodes[doc.id] === 'explanation',
           readOnly,
           hasPosition,
           onOpenNote: handleOpenNote,
@@ -426,17 +524,18 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           },
           onGenerate: async (id: string, type: 'subtopic' | 'explanation') => {
             if (readOnly) return
-            // Optimistic update or just loading state
-            // We need to pass a state setter or use a global store for better UX
-            // For now, we'll just trigger the action and refresh
+            
+            setGeneratingNodes(prev => ({ ...prev, [id]: type }))
+            
             try {
-               // Find node and set loading
-               // This is tricky without local state management for nodes
-               // But we can just rely on the router refresh for now
                await generateTopicContent(id, type)
-               router.refresh()
             } catch (e) {
               console.error(e)
+              setGeneratingNodes(prev => {
+                  const next = { ...prev }
+                  delete next[id]
+                  return next
+              })
             }
           }
         },
@@ -460,7 +559,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     })
 
     return getLayoutedElements(nodes, edges)
-  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenQuiz, handleOpenFlashcards, handleOpenResources, handleOpenSummary, quizPanelState.isGenerating, quizPanelState.documentId, flashcardPanelState.isGenerating, flashcardPanelState.documentId])
+  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenQuiz, handleOpenFlashcards, handleOpenResources, handleOpenSummary, quizPanelState.isGenerating, quizPanelState.documentId, flashcardPanelState.isGenerating, flashcardPanelState.documentId, generatingNodes])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
