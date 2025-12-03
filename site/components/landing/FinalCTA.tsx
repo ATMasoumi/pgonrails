@@ -101,8 +101,8 @@ export default function FinalCTA() {
                 ))}
              </div>
              <div className="flex flex-col">
-                <div className="text-xl font-bold text-white leading-none">10k+</div>
-                <div className="text-xs text-gray-400 font-medium mt-1">Active Learners</div>
+                <div className="text-xl font-bold text-white leading-none">Join</div>
+                <div className="text-xs text-gray-400 font-medium mt-1">Early Adopters</div>
              </div>
           </motion.div>
         </div>
