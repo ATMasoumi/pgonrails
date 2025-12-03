@@ -4,15 +4,28 @@ import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
 import { Sparkles, ArrowRight } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase/client"
 
 export default function FinalCTA() {
+  const router = useRouter()
+
+  const handleStartLearning = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      router.push('/dashboard')
+    } else {
+      router.push('/signin')
+    }
+  }
+
   return (
     <section className="container mx-auto px-4 py-24">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        className="max-w-5xl mx-auto bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] p-8 md:p-16 relative overflow-hidden group"
+        className="max-w-6xl mx-auto bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] p-8 md:p-16 relative overflow-hidden group"
       >
         {/* Grid background pattern */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] opacity-20"></div>
@@ -60,7 +73,7 @@ export default function FinalCTA() {
               viewport={{ once: true }}
               transition={{ delay: 0.5 }}
             >
-              <Button size="lg" className="bg-white text-black hover:bg-gray-200 rounded-full px-8 h-14 font-bold text-base shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)] hover:shadow-[0_0_25px_-5px_rgba(255,255,255,0.4)] transition-all duration-300">
+              <Button onClick={handleStartLearning} size="lg" className="bg-white text-black hover:bg-gray-200 rounded-full px-8 h-14 font-bold text-base shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)] hover:shadow-[0_0_25px_-5px_rgba(255,255,255,0.4)] transition-all duration-300">
                 Start Learning Now <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </motion.div>

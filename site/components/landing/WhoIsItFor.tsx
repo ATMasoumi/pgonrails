@@ -344,63 +344,6 @@ export default function WhoIsItFor() {
           </div>
         </div>
       )
-    },
-    {
-      title: "Creators",
-      description: "Chat with your content to brainstorm ideas and extract key quotes effortlessly.",
-      icon: MessageSquare,
-      color: "text-cyan-400",
-      bg: "bg-cyan-400/10",
-      visual: (
-        <div className="relative h-64 w-full flex items-center justify-center">
-          <div className="w-72 bg-[#1A1A1A] border border-white/10 rounded-xl overflow-hidden shadow-2xl">
-            {/* Chat Header */}
-            <div className="bg-white/5 p-3 border-b border-white/5 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-              <span className="text-xs font-bold text-gray-300">DocTree AI</span>
-            </div>
-
-            {/* Chat Area */}
-            <div className="p-4 space-y-4">
-              {/* User Message */}
-              <motion.div 
-                className="flex justify-end"
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <div className="bg-cyan-500/20 border border-cyan-500/30 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[80%]">
-                  <div className="text-xs text-cyan-100">Find quotes about innovation.</div>
-                </div>
-              </motion.div>
-
-              {/* AI Response */}
-              <motion.div 
-                className="flex justify-start"
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8 }}
-              >
-                <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[90%]">
-                  <div className="flex gap-1 mb-2">
-                    <div className="w-1 h-1 bg-gray-500 rounded-full animate-bounce" />
-                    <div className="w-1 h-1 bg-gray-500 rounded-full animate-bounce delay-75" />
-                    <div className="w-1 h-1 bg-gray-500 rounded-full animate-bounce delay-150" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="p-2 bg-black/20 rounded border border-white/5">
-                      <div className="text-[10px] text-gray-400 italic">"Innovation distinguishes between a leader and a follower."</div>
-                    </div>
-                    <div className="p-2 bg-black/20 rounded border border-white/5">
-                      <div className="text-[10px] text-gray-400 italic">"The best way to predict the future is to create it."</div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          </div>
-        </div>
-      )
     }
   ]
 

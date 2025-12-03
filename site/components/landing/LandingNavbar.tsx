@@ -15,7 +15,7 @@ export default function LandingNavbar() {
   return (
     <motion.nav 
       className={cn(
-        "fixed top-4 md:top-6 left-1/2 -translate-x-1/2 w-[95%] md:w-[90%] max-w-5xl rounded-full bg-[#111]/80 backdrop-blur-md shadow-2xl border border-white/10 py-2 md:py-3 px-4 md:px-6 z-50 flex items-center justify-between"
+        "fixed top-4 md:top-6 left-1/2 -translate-x-1/2 w-[95%] md:w-[90%] max-w-6xl rounded-full bg-[#111]/80 backdrop-blur-md shadow-2xl border border-white/10 py-2 md:py-3 px-4 md:px-6 z-50 flex items-center justify-between"
       )}
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
