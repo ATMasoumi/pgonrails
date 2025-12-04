@@ -100,8 +100,9 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
                  // acc[id] = { type: data as 'subtopic' | 'explanation', startedAt: now }
                  // Actually, if it's legacy, it might be stuck. Let's discard.
             } else if (typeof data === 'object' && data !== null && 'type' in data && 'startedAt' in data) {
-                 if (now - (data as any).startedAt < 5 * 60 * 1000) {
-                     acc[id] = data as { type: 'subtopic' | 'explanation', startedAt: number }
+                 const typedData = data as { type: 'subtopic' | 'explanation', startedAt: number }
+                 if (now - typedData.startedAt < 5 * 60 * 1000) {
+                     acc[id] = typedData
                  }
             }
             return acc

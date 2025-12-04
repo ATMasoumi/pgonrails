@@ -3,10 +3,11 @@ import { openai } from '@ai-sdk/openai'
 import { streamText } from 'ai'
 import { getUserSubscriptionStatus } from '@/lib/subscription'
 import { checkAndIncrementUsage } from '@/lib/token-usage'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 export const maxDuration = 60
 
-async function getTopicPath(supabase: any, startId: string) {
+async function getTopicPath(supabase: SupabaseClient, startId: string) {
   const path: string[] = []
   let currentId = startId
   
