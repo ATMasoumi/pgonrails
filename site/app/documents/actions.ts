@@ -229,7 +229,7 @@ These subtopics should help someone who has followed the learning path above to 
     }
   } else {
     try {
-      const modelName = isPro ? 'gpt-5.1' : 'gpt-5-mini'
+      const modelName = isPro ? 'gpt-5-mini' : 'gpt-5-mini'
       const { text, usage } = await generateText({
         model: openai(modelName),
         system: "You are an expert academic researcher and writer. Generate a highly comprehensive, detailed, and in-depth article about the requested topic. The content should be extensive, covering history, key concepts, theoretical foundations, practical applications, current state, future implications, and relevant examples. Use clear markdown formatting with multiple headers, lists, and code blocks where appropriate. Aim for a deep dive into the subject matter that provides significant value and insight.",

@@ -122,7 +122,7 @@ export default function Hero() {
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % topics.length)
-    }, 5000)
+    }, 3000)
     return () => clearInterval(timer)
   }, [])
 

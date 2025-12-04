@@ -7,10 +7,10 @@ export default async function DocumentPage({
   searchParams 
 }: { 
   params: Promise<{ id: string }>
-  searchParams: Promise<{ rootId?: string }>
+  searchParams: Promise<{ rootId?: string; autoGenerate?: string }>
 }) {
   const { id } = await params
-  const { rootId } = await searchParams
+  const { rootId, autoGenerate } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -37,5 +37,5 @@ export default async function DocumentPage({
 
   console.log('Document data:', document)
 
-  return <DocumentView document={document} rootId={rootId} />
+  return <DocumentView doc={document} rootId={rootId} autoGenerate={autoGenerate === 'true'} />
 }

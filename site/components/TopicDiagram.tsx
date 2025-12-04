@@ -11,9 +11,10 @@ import { SummarySidePanel } from './SummarySidePanel'
 import { QuizSidePanel, QuizQuestion } from './QuizSidePanel'
 import { FlashcardSidePanel, Flashcard } from './FlashcardSidePanel'
 import { ResourceData } from './ResourcesModal'
-import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz, generateFlashcards, getFlashcards, updateNodePosition } from '@/app/documents/actions'
+import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz, generateFlashcards, getFlashcards, updateNodePosition, generatePodcast } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 
 const nodeWidth = 280
 const nodeHeight = 100
@@ -80,7 +81,8 @@ interface TopicDiagramProps {
 
 export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagramProps) {
   const router = useRouter()
-  const [generatingNodes, setGeneratingNodes] = useState<Record<string, 'subtopic' | 'explanation'>>({})
+  const [generatingNodes, setGeneratingNodes] = useState<Record<string, { type: 'subtopic' | 'explanation', startedAt: number }>>({})
+  const [generatingPodcasts, setGeneratingPodcasts] = useState<Record<string, number>>({})
 
   // Load generating state from localStorage on mount
   useEffect(() => {
@@ -88,36 +90,102 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
-        // Filter out nodes that have completed (e.g. content exists now)
-        // This is tricky because we don't have the doc state inside this effect easily without deps
-        // But we can just load it. The realtime subscription will clean it up if we get an UPDATE event.
-        // However, if the update happened while we were away, we might be stuck.
-        // So we should check against current documents.
+        // Check for timeouts (e.g. 5 minutes)
+        const now = Date.now()
+        const filtered = Object.entries(parsed).reduce((acc, [id, data]) => {
+            // Handle legacy format (string) or new format (object)
+            if (typeof data === 'string') {
+                 // Legacy format, assume it's old and discard or keep with new timestamp?
+                 // Let's discard legacy to be safe or give it a fresh timestamp
+                 // acc[id] = { type: data as 'subtopic' | 'explanation', startedAt: now }
+                 // Actually, if it's legacy, it might be stuck. Let's discard.
+            } else if (typeof data === 'object' && data !== null && 'type' in data && 'startedAt' in data) {
+                 if (now - (data as any).startedAt < 5 * 60 * 1000) {
+                     acc[id] = data as { type: 'subtopic' | 'explanation', startedAt: number }
+                 }
+            }
+            return acc
+        }, {} as Record<string, { type: 'subtopic' | 'explanation', startedAt: number }>)
+        setGeneratingNodes(filtered)
         
-        setGeneratingNodes(parsed)
+        // If we have pending generations, refresh to check if they are done
+        if (Object.keys(filtered).length > 0) {
+            router.refresh()
+        }
       } catch (e) {
         console.error('Failed to parse generatingNodes from localStorage', e)
+      }
+    }
+
+    const savedPodcasts = localStorage.getItem('generatingPodcasts')
+    if (savedPodcasts) {
+      try {
+        const parsed = JSON.parse(savedPodcasts)
+        // Check for timeouts (e.g. 5 minutes)
+        const now = Date.now()
+        const filtered = Object.entries(parsed).reduce((acc, [id, ts]) => {
+            if (typeof ts === 'number' && now - ts < 5 * 60 * 1000) {
+                acc[id] = ts
+            }
+            return acc
+        }, {} as Record<string, number>)
+        setGeneratingPodcasts(filtered)
+      } catch (e) {
+        console.error('Failed to parse generatingPodcasts from localStorage', e)
       }
     }
   }, [])
 
   // Clean up generatingNodes based on actual document state
   useEffect(() => {
+    // Debug logging
+    if (Object.keys(generatingNodes).length > 0) {
+        console.log('TopicDiagram: Checking updates for generating nodes:', generatingNodes)
+        documents.forEach(doc => {
+            if (generatingNodes[doc.id]) {
+                console.log(`TopicDiagram: Doc ${doc.id} state:`, {
+                    hasContent: !!doc.content,
+                    contentLength: doc.content?.length,
+                    hasChildren: documents.some(d => d.parent_id === doc.id)
+                })
+            }
+        })
+    }
+
     if (documents.length > 0) {
         setGeneratingNodes(prev => {
             const next = { ...prev }
             let changed = false
             
             documents.forEach(doc => {
-                // If we think we are generating explanation, but content exists, stop.
-                if (next[doc.id] === 'explanation' && doc.content) {
+                if (next[doc.id]?.type === 'explanation' && doc.content) {
+                    console.log(`TopicDiagram: Cleaning up explanation for ${doc.id} - Content found`)
                     delete next[doc.id]
                     changed = true
                 }
-                // If we think we are generating subtopics, but children exist, stop.
-                // (This is harder to check efficiently without a map, but let's try)
-                // Actually, the realtime INSERT event handles subtopics well.
-                // The main issue is explanation.
+
+                if (next[doc.id]?.type === 'subtopic') {
+                    const hasChildren = documents.some(d => d.parent_id === doc.id)
+                    if (hasChildren) {
+                        console.log(`TopicDiagram: Cleaning up subtopic for ${doc.id} - Children found`)
+                        delete next[doc.id]
+                        changed = true
+                    }
+                }
+            })
+            
+            return changed ? next : prev
+        })
+
+        setGeneratingPodcasts(prev => {
+            const next = { ...prev }
+            let changed = false
+            
+            documents.forEach(doc => {
+                if (next[doc.id] && doc.podcasts && doc.podcasts.length > 0) {
+                    delete next[doc.id]
+                    changed = true
+                }
             })
             
             return changed ? next : prev
@@ -131,6 +199,10 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
   }, [generatingNodes])
 
   useEffect(() => {
+    localStorage.setItem('generatingPodcasts', JSON.stringify(generatingPodcasts))
+  }, [generatingPodcasts])
+
+  useEffect(() => {
     const channel = supabase
       .channel('documents-changes')
       .on(
@@ -141,37 +213,47 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           table: 'documents',
         },
         (payload) => {
-          router.refresh()
+          console.log('Received realtime update:', payload)
+          // Add a small delay to ensure DB propagation before refresh
+          setTimeout(() => {
+            router.refresh()
+          }, 1000)
+          
+          // We rely on the useEffect above to clear the generating state
+          // once the new data (content or children) is available in the documents prop.
+          // This prevents the UI from flickering or showing the "Learn More" button
+          // before the "Read Doc" button is ready.
+        }
+      )
+      .subscribe()
 
-          if (payload.eventType === 'UPDATE') {
-             const docId = payload.new.id
-             setGeneratingNodes(prev => {
-                if (prev[docId] === 'explanation') {
-                    const next = { ...prev }
-                    delete next[docId]
-                    return next
-                }
-                return prev
-             })
-          } else if (payload.eventType === 'INSERT') {
-             const parentId = payload.new.parent_id
-             if (parentId) {
-                 setGeneratingNodes(prev => {
-                    if (prev[parentId] === 'subtopic') {
-                        const next = { ...prev }
-                        delete next[parentId]
-                        return next
-                    }
-                    return prev
-                 })
-             }
-          }
+    const podcastChannel = supabase
+      .channel('podcasts-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'podcasts',
+        },
+        (payload) => {
+          router.refresh()
+          const docId = payload.new.document_id
+          setGeneratingPodcasts(prev => {
+            if (prev[docId]) {
+              const next = { ...prev }
+              delete next[docId]
+              return next
+            }
+            return prev
+          })
         }
       )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
+      supabase.removeChannel(podcastChannel)
     }
   }, [router])
 
@@ -281,9 +363,9 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     const doc = documents.find(d => d.id === id)
     if (!doc || !doc.content) return
 
-    // Open panel immediately with loading state
+    // Set loading state but DON'T open panel yet
     setQuizPanelState({
-      isOpen: true,
+      isOpen: false,
       title: doc.query,
       documentId: id,
       content: doc.content,
@@ -299,6 +381,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
       if (existing && existing.quiz) {
         setQuizPanelState(prev => ({
           ...prev,
+          isOpen: true,
           questions: existing.quiz.questions,
           quizId: existing.quiz.id,
           existingAnswers: existing.attempt?.answers,
@@ -312,6 +395,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
       if (result.success && result.quiz) {
         setQuizPanelState(prev => ({
           ...prev,
+          isOpen: true,
           questions: result.quiz.questions,
           quizId: result.quizId,
           isGenerating: false
@@ -505,8 +589,9 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           hasSummary: !!doc.summary,
           isGeneratingQuiz: quizPanelState.isGenerating && quizPanelState.documentId === doc.id,
           isGeneratingFlashcards: flashcardPanelState.isGenerating && flashcardPanelState.documentId === doc.id,
-          isGeneratingSubtopics: generatingNodes[doc.id] === 'subtopic',
-          isGeneratingExplanation: generatingNodes[doc.id] === 'explanation',
+          isGeneratingSubtopics: generatingNodes[doc.id]?.type === 'subtopic',
+          isGeneratingExplanation: generatingNodes[doc.id]?.type === 'explanation',
+          isGeneratingPodcast: !!generatingPodcasts[doc.id],
           readOnly,
           hasPosition,
           onOpenNote: handleOpenNote,
@@ -522,10 +607,28 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
               router.refresh()
             }
           },
+          onGeneratePodcast: async (id: string) => {
+             if (readOnly) return
+             setGeneratingPodcasts(prev => ({
+                ...prev,
+                [id]: Date.now()
+             }))
+             try {
+                await generatePodcast(id)
+             } catch (e) {
+                console.error(e)
+                toast.error("Failed to generate podcast. Please try again.")
+                setGeneratingPodcasts(prev => {
+                    const next = { ...prev }
+                    delete next[id]
+                    return next
+                })
+             }
+          },
           onGenerate: async (id: string, type: 'subtopic' | 'explanation') => {
             if (readOnly) return
             
-            setGeneratingNodes(prev => ({ ...prev, [id]: type }))
+            setGeneratingNodes(prev => ({ ...prev, [id]: { type, startedAt: Date.now() } }))
             
             try {
                await generateTopicContent(id, type)

@@ -4,6 +4,59 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Enhanced LLM streaming animations */
+
+/* Smooth blinking cursor with glow */
+@keyframes blink {
+  0%, 49% { 
+    opacity: 1; 
+    transform: scaleY(1);
+  }
+  50%, 100% { 
+    opacity: 0.15; 
+    transform: scaleY(0.9);
+  }
+}
+
+.animate-blink {
+  animation: blink 1s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+/* Character-by-character fade in animation */
+@keyframes fadeInChar {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.streaming-char {
+  animation: fadeInChar 0.15s ease-out forwards;
+  display: inline-block;
+}
+
+/* Smooth text appearance with layout optimization */
+.streaming-content {
+  contain: layout style paint;
+}
+
+.streaming-text-container {
+  will-change: contents;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.streaming-text-content {
+  display: inline;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

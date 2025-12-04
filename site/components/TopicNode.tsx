@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useState, useEffect } from 'react'
+import { memo, useState, useEffect, useRef } from 'react'
 import { Handle, Position, NodeProps, Node } from '@xyflow/react'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square, Library } from 'lucide-react'
@@ -31,6 +31,7 @@ interface TopicNodeData extends Record<string, unknown> {
   isGeneratingFlashcards?: boolean
   isGeneratingSubtopics?: boolean
   isGeneratingExplanation?: boolean
+  isGeneratingPodcast?: boolean
   onToggleCollapse: () => void
   onOpenDocument: () => void
   onOpenNote: (id: string) => void
@@ -40,12 +41,13 @@ interface TopicNodeData extends Record<string, unknown> {
   onOpenSummary: (title: string, summary: string) => void
   onDelete: (id: string) => Promise<void>
   onGenerate: (id: string, type: 'subtopic' | 'explanation') => Promise<void>
+  onGeneratePodcast: (id: string) => Promise<void>
 }
 
 type TopicNode = Node<TopicNodeData>
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, isGeneratingSubtopics, isGeneratingExplanation, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, isGeneratingSubtopics, isGeneratingExplanation, isGeneratingPodcast, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary, onGeneratePodcast } = data
   const [isDeleting, setIsDeleting] = useState(false)
 
   // Resources state
@@ -63,8 +65,15 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
     }
   }, [hasSummary])
 
+  // Debug logging
+  useEffect(() => {
+    if (isGeneratingExplanation || isGeneratingSubtopics) {
+        console.log(`TopicNode ${id}: Generating state active. Content present:`, !!content)
+    }
+  }, [isGeneratingExplanation, isGeneratingSubtopics, content, id])
+
   // Podcast state
-  const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false)
+  const [isFetchingPodcast, setIsFetchingPodcast] = useState(false)
   const [podcastUrl, setPodcastUrl] = useState<string | null>(null)
   const { playPodcast, currentUrl, isPlaying, togglePlayPause } = usePodcast()
   const router = useRouter()
@@ -180,7 +189,9 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
       return
     }
 
-    setIsGeneratingPodcast(true)
+    if (isGeneratingPodcast || isFetchingPodcast) return
+
+    setIsFetchingPodcast(true)
     try {
       let url = podcastUrl
 
@@ -190,11 +201,12 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         
         if (existing) {
           url = existing.audio_url
+          setPodcastUrl(url)
         } else {
           // Generate new
-          url = await generatePodcast(id)
+          await onGeneratePodcast(id)
+          return
         }
-        setPodcastUrl(url)
       }
 
       if (url) {
@@ -203,9 +215,24 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
     } catch (error) {
       console.error('Error playing podcast:', error)
     } finally {
-      setIsGeneratingPodcast(false)
+      setIsFetchingPodcast(false)
     }
   }
+
+  // Auto-play when generation finishes
+  const prevIsGenerating = useRef(isGeneratingPodcast)
+  useEffect(() => {
+     if (prevIsGenerating.current && !isGeneratingPodcast) {
+         // Just finished generating.
+         getPodcast(id).then(existing => {
+             if (existing && existing.audio_url) {
+                 setPodcastUrl(existing.audio_url)
+                 playPodcast(existing.audio_url, label)
+             }
+         })
+     }
+     prevIsGenerating.current = isGeneratingPodcast
+  }, [isGeneratingPodcast, id, label, playPodcast])
 
   return (
     <div className="relative group">
@@ -261,20 +288,20 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                 ) : (
                   <Brain className="w-3 h-3" />
                 )}
-                <span className="text-[10px] font-medium">{isGeneratingQuiz ? 'Generating...' : 'Quiz'}</span>
+                <span className="text-[10px] font-medium">Quiz</span>
               </button>
               <button 
                 onClick={handlePodcastClick}
-                disabled={isGeneratingPodcast}
+                disabled={isGeneratingPodcast || isFetchingPodcast}
                 className={cn(
                   "flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all cursor-pointer",
                   "bg-orange-500/5 border-orange-500/10 text-orange-400/50 hover:text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/20",
-                  isGeneratingPodcast && "opacity-50 cursor-not-allowed",
+                  (isGeneratingPodcast || isFetchingPodcast) && "opacity-50 cursor-not-allowed",
                   isThisPodcastPlaying && "bg-orange-500/30 border-orange-500/50 animate-pulse text-orange-400 opacity-100",
                   (hasPodcast || podcastUrl) && !isThisPodcastPlaying && "border-orange-500/50 bg-orange-500/10 text-orange-400 opacity-100"
                 )}
               >
-                {isGeneratingPodcast ? (
+                {(isGeneratingPodcast || isFetchingPodcast) ? (
                   <Loader2 className="w-3 h-3 animate-spin" />
                 ) : isThisPodcastPlaying ? (
                   <Square className="w-3 h-3 fill-current" />
@@ -316,7 +343,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                 ) : (
                   <Layers className="w-3 h-3" />
                 )}
-                <span className="text-[10px] font-medium">{isGeneratingFlashcards ? 'Generating...' : 'Flashcards'}</span>
+                <span className="text-[10px] font-medium">Flashcards</span>
               </button>
               <button 
                 onClick={handleResourcesClick}
@@ -379,16 +406,12 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
                   className="flex-1 text-xs h-8 px-3 bg-white/5 border-white/10 text-gray-300 hover:bg-blue-500/10 hover:text-blue-400 hover:border-blue-500/30 transition-all"
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleGenerate('explanation')
+                    // Navigate to document page with autoGenerate flag
+                    router.push(`/documents/${id}?rootId=${rootId}&autoGenerate=true`)
                   }}
-                  disabled={isGeneratingExplanation}
                   title="Learn More"
                 >
-                  {isGeneratingExplanation ? (
-                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                  ) : (
-                    <FileText className="w-3.5 h-3.5 mr-1.5" />
-                  )}
+                  <FileText className="w-3.5 h-3.5 mr-1.5" />
                   Learn More
                 </Button>
               )
