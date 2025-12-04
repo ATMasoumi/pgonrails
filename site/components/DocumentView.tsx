@@ -2,15 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { MessageSquare, ArrowLeft, Check } from 'lucide-react'
+import { MessageSquare, ArrowLeft, Check, BookOpen, Clock } from 'lucide-react'
 import { DocumentSidePanel } from '@/components/DocumentSidePanel'
-import Link from 'next/link'
 import { markAsRead } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useCompletion } from '@ai-sdk/react'
 import { StreamingText } from '@/components/StreamingText'
-import { motion } from 'framer-motion'
 
 // ============================================================================
 // TYPES
@@ -33,8 +31,26 @@ interface DocumentViewProps {
 }
 
 // ============================================================================
+// HELPERS
+// ============================================================================
+
+function formatDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
+}
+
+function estimateReadTime(content: string): number {
+  const wordsPerMinute = 200
+  const words = content.trim().split(/\s+/).length
+  return Math.max(1, Math.ceil(words / wordsPerMinute))
+}
+
+// ============================================================================
 // COMPONENT: DocumentView
-// A beautifully styled document viewer with line-by-line streaming animation
+// A Medium-style article reader with elegant typography and streaming support
 // ============================================================================
 
 export function DocumentView({ doc, rootId, autoGenerate }: DocumentViewProps) {
@@ -61,7 +77,6 @@ export function DocumentView({ doc, rootId, autoGenerate }: DocumentViewProps) {
   })
 
   // Auto-generate document if requested and no content exists
-  // Use a ref to track if we've already triggered generation
   const hasTriggeredGeneration = useRef(false)
   
   useEffect(() => {
@@ -71,9 +86,10 @@ export function DocumentView({ doc, rootId, autoGenerate }: DocumentViewProps) {
     }
   }, [autoGenerate, doc.content, isGenerating, completion, complete])
 
-  // Derived values for streaming - no useMemo needed for primitives
+  // Derived values for streaming
   const displayContent = completion || doc.content || ''
   const isCurrentlyStreaming = isGenerating
+  const readTime = estimateReadTime(displayContent)
 
   // Selection handling for "Explain" feature
   useEffect(() => {
@@ -99,17 +115,18 @@ export function DocumentView({ doc, rootId, autoGenerate }: DocumentViewProps) {
       }
 
       const range = selection.getRangeAt(0)
-      const rects = range.getClientRects()
+      const rect = range.getBoundingClientRect()
       
-      if (rects.length === 0) {
+      if (rect.width === 0) {
         setSelectionPos(null)
         return
       }
-
-      const rect = rects[rects.length - 1]
+      
+      // Use document-relative positions (with scroll offset) for absolute positioning
+      // This way the button scrolls naturally with content without needing scroll event updates
       setSelectionPos({
-        top: rect.top + window.scrollY,
-        left: rect.right + window.scrollX
+        top: rect.top + window.scrollY - 44,
+        left: rect.left + window.scrollX + (rect.width / 2)
       })
       setSelectedText(text)
     }
@@ -147,105 +164,138 @@ export function DocumentView({ doc, rootId, autoGenerate }: DocumentViewProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white relative">
-      {/* Subtle gradient background for depth */}
-      <div className="fixed inset-0 bg-gradient-to-br from-blue-950/10 via-transparent to-purple-950/10 pointer-events-none" />
-      
-      {/* Navigation bar with glassmorphism */}
-      <nav className="bg-[#0a0a0a]/80 border-b border-white/5 px-4 py-3 backdrop-blur-xl sticky top-0 z-50">
-        <div className="container mx-auto flex items-center justify-between max-w-5xl">
-          <Link href={rootId ? `/dashboard/${rootId}` : "/dashboard"}>
-            <Button 
-              variant="ghost" 
-              className="pl-0 hover:pl-0 hover:bg-transparent text-gray-400 hover:text-white transition-colors group"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4 group-hover:-translate-x-1 transition-transform" />
-              Back to {rootId ? 'Topic' : 'Dashboard'}
-            </Button>
-          </Link>
+    <div className="min-h-screen bg-[#0a0a0a] text-[#e6e6e6] relative">
+      {/* Minimal top navigation - Medium style */}
+      <nav className="border-b border-white/[0.06] sticky top-0 z-50 bg-[#0a0a0a]/95 backdrop-blur-sm">
+        <div className="max-w-[900px] mx-auto px-6 h-14 flex items-center justify-between">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => router.back()}
+            className="text-[#a0a0a0] hover:text-white hover:bg-transparent -ml-2 gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Back</span>
+          </Button>
           
-          <div className="flex gap-2 items-center">
+          <div className="flex items-center gap-1">
             <Button 
               onClick={handleMarkAsRead} 
               disabled={isMarking || doc.is_read} 
-              variant={doc.is_read ? "secondary" : "outline"}
+              variant="ghost"
+              size="sm"
               className={doc.is_read 
-                ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/15" 
-                : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
+                ? "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10" 
+                : "text-[#a0a0a0] hover:text-white hover:bg-white/5"
               }
             >
-              <Check className="w-4 h-4 mr-2" />
-              {doc.is_read ? "Read" : "Mark as Read"}
+              <Check className="w-4 h-4 mr-1.5" />
+              <span className="hidden sm:inline">{doc.is_read ? "Read" : "Mark read"}</span>
             </Button>
             <Button 
               onClick={() => setIsChatOpen(true)} 
-              variant="outline" 
-              className="bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
+              variant="ghost"
+              size="sm"
+              className="text-[#a0a0a0] hover:text-white hover:bg-white/5"
             >
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Chat with AI
+              <MessageSquare className="w-4 h-4 mr-1.5" />
+              <span className="hidden sm:inline">Discuss</span>
             </Button>
           </div>
         </div>
       </nav>
 
-      {/* Main content area */}
-      <main className="container mx-auto py-8 px-4 relative z-10">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
-          className="max-w-[720px] mx-auto"
-        >
-          {/* Document container with elegant styling */}
-          <div className="bg-[#111111] rounded-2xl border border-white/[0.06] shadow-2xl shadow-black/50 overflow-hidden">
-            {/* Header section */}
-            <div className="px-8 pt-8 pb-6 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.02] to-transparent">
-              <motion.h1 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1, duration: 0.3 }}
-                className="text-3xl font-bold text-white tracking-tight leading-tight"
-              >
-                {doc.query}
-              </motion.h1>
-              
-              {/* Streaming status indicator */}
-              {isGenerating && (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="mt-4 flex items-center gap-2"
-                >
-                  <div className="h-2 w-2 bg-blue-400 rounded-full animate-pulse" />
-                  <span className="text-sm text-blue-400/80">Streaming response...</span>
-                </motion.div>
-              )}
-            </div>
+      {/* Article content - Medium style layout */}
+      <article className="relative">
+        {/* Hero header section */}
+        <header className="pt-12 pb-8 px-6">
+          <div className="max-w-[680px] mx-auto">
+            {/* Title */}
+            <h1 className="text-[32px] sm:text-[42px] font-bold text-white leading-[1.15] tracking-[-0.02em] mb-6">
+              {doc.query}
+            </h1>
             
-            {/* Content area with streaming text */}
-            <div 
-              ref={contentRef}
-              className="px-8 py-6"
-            >
-              <StreamingText 
-                content={displayContent} 
-                isStreaming={isCurrentlyStreaming} 
-                className="prose-lg max-w-none"
-              />
+            {/* Meta info row */}
+            <div className="flex items-center gap-4 text-[14px] text-[#757575]">
+              <div className="flex items-center gap-4">
+                {/* Date */}
+                <span>{formatDate(doc.created_at)}</span>
+                
+                <span className="text-[#757575]">·</span>
+                
+                {/* Read time */}
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{isCurrentlyStreaming ? 'Writing...' : `${readTime} min read`}</span>
+                </div>
+              </div>
             </div>
+
+            {/* Streaming indicator */}
+            {isCurrentlyStreaming && (
+              <div className="mt-6 flex items-center gap-3 py-3 px-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <div className="flex gap-1">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"
+                      style={{ animationDelay: `${i * 150}ms` }}
+                    />
+                  ))}
+                </div>
+                <span className="text-sm text-blue-400">Generating content...</span>
+              </div>
+            )}
           </div>
-        </motion.div>
-      </main>
+        </header>
+
+        {/* Divider */}
+        <div className="max-w-[680px] mx-auto px-6">
+          <div className="h-px bg-white/[0.06]" />
+        </div>
+
+        {/* Main content area */}
+        <div 
+          ref={contentRef}
+          className="py-10 px-6"
+        >
+          <div className="max-w-[680px] mx-auto">
+            <StreamingText 
+              content={displayContent} 
+              isStreaming={isCurrentlyStreaming} 
+            />
+          </div>
+        </div>
+
+        {/* Bottom actions */}
+        {!isCurrentlyStreaming && displayContent && (
+          <footer className="border-t border-white/[0.06] py-8 px-6">
+            <div className="max-w-[680px] mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[#757575] text-sm">
+                <BookOpen className="w-4 h-4" />
+                <span>{readTime} min read</span>
+              </div>
+              
+              <Button 
+                onClick={() => setIsChatOpen(true)} 
+                variant="outline"
+                size="sm"
+                className="bg-white/5 border-white/10 text-[#e6e6e6] hover:bg-white/10 hover:text-white"
+              >
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Ask a question
+              </Button>
+            </div>
+          </footer>
+        )}
+      </article>
 
       {/* Selection tooltip for "Explain" feature */}
       {selectionPos && (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9, y: 5 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
+        <div 
           className="absolute z-50"
           style={{
-            top: `${selectionPos.top - 44}px`,
+            top: `${selectionPos.top}px`,
             left: `${selectionPos.left}px`,
             transform: 'translateX(-50%)'
           }}
@@ -254,12 +304,12 @@ export function DocumentView({ doc, rootId, autoGenerate }: DocumentViewProps) {
           <Button 
             size="sm" 
             onClick={handleExplain}
-            className="rounded-full bg-zinc-900 border border-white/10 text-white shadow-2xl shadow-black/50 hover:bg-zinc-800 hover:border-white/20 transition-all"
+            className="rounded-full bg-[#1a1a1a] border border-white/10 text-white shadow-2xl hover:bg-[#252525]"
           >
-            <MessageSquare className="w-3 h-3 mr-2" />
+            <MessageSquare className="w-3 h-3 mr-1.5" />
             Explain
           </Button>
-        </motion.div>
+        </div>
       )}
 
       {/* Chat side panel */}

@@ -1,12 +1,52 @@
 "use client"
 
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useRef, useLayoutEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 import { CodeBlock } from '@/components/CodeBlock'
 import { ArrowDown } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
+
+// ============================================================================
+// LINE ANIMATION COMPONENT
+// ============================================================================
+
+interface AnimatedLineProps {
+  children: React.ReactNode
+  index: number
+  isNew: boolean
+}
+
+function AnimatedLine({ children, index, isNew }: AnimatedLineProps) {
+  return (
+    <motion.div
+      initial={isNew ? { 
+        opacity: 0, 
+        y: -25, 
+        filter: 'blur(12px)',
+        scale: 0.95
+      } : false}
+      animate={{ 
+        opacity: 1, 
+        y: 0, 
+        filter: 'blur(0px)',
+        scale: 1
+      }}
+      transition={{
+        type: "spring",
+        stiffness: 50,
+        damping: 20,
+        mass: 0.8,
+        delay: isNew ? index * 0.06 : 0,
+        opacity: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] },
+        filter: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] },
+      }}
+    >
+      {children}
+    </motion.div>
+  )
+}
 
 // ============================================================================
 // TYPES
@@ -20,14 +60,77 @@ interface StreamingTextProps {
 
 // ============================================================================
 // COMPONENT: StreamingText
-// Renders streaming markdown text with smooth auto-scroll behavior
+// Medium-style article typography with streaming support and line animations
+// Lines are buffered and released at an even pace with smooth timing
 // ============================================================================
 
-export function StreamingText({ content, isStreaming, className }: StreamingTextProps) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
+const LINE_RELEASE_INTERVAL = 200 // ms between each line appearing
 
-  // Markdown components configuration with elegant styling
+export function StreamingText({ content, isStreaming, className }: StreamingTextProps) {
+  const [isFollowing, setIsFollowing] = useState(true) // Start in follow mode
+  const [showFollowButton, setShowFollowButton] = useState(false)
+  
+  // All completed lines from the stream
+  const [allCompletedLines, setAllCompletedLines] = useState<string[]>([])
+  // Lines that are visible (released from buffer)
+  const [visibleLineCount, setVisibleLineCount] = useState(0)
+  const prevContentRef = useRef('')
+  const releaseTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Parse content into completed lines
+  useEffect(() => {
+    if (content === prevContentRef.current) return
+    prevContentRef.current = content
+    
+    // Split by single newline - every line drops in separately
+    const parts = content.split('\n')
+    
+    if (isStreaming) {
+      // All parts except the last one are complete (ended with \n)
+      const complete = parts.slice(0, -1).filter(p => p.trim())
+      setAllCompletedLines(complete)
+    } else {
+      // Not streaming - all lines are complete, show all immediately
+      const complete = parts.filter(p => p.trim())
+      setAllCompletedLines(complete)
+      setVisibleLineCount(complete.length)
+    }
+  }, [content, isStreaming])
+
+  // Release lines one at a time at even intervals
+  useEffect(() => {
+    if (!isStreaming) return
+    
+    // If there are buffered lines waiting to be shown
+    if (allCompletedLines.length > visibleLineCount) {
+      releaseTimerRef.current = setTimeout(() => {
+        setVisibleLineCount(prev => prev + 1)
+      }, LINE_RELEASE_INTERVAL)
+    }
+    
+    return () => {
+      if (releaseTimerRef.current) {
+        clearTimeout(releaseTimerRef.current)
+      }
+    }
+  }, [allCompletedLines.length, visibleLineCount, isStreaming])
+
+  // Reset when streaming starts fresh
+  useEffect(() => {
+    if (isStreaming && content === '') {
+      setAllCompletedLines([])
+      setVisibleLineCount(0)
+      if (releaseTimerRef.current) {
+        clearTimeout(releaseTimerRef.current)
+      }
+    }
+  }, [isStreaming, content])
+
+  // Get the lines that should be visible
+  const visibleLines = allCompletedLines.slice(0, visibleLineCount)
+  const hasBufferedLines = allCompletedLines.length > visibleLineCount
+
+  // Medium-style typography components
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markdownComponents: any = useMemo(() => ({
     pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
@@ -39,146 +142,266 @@ export function StreamingText({ content, isStreaming, className }: StreamingText
           value={String(children).replace(/\n$/, '')}
         />
       ) : (
-        <code {...props} className={cn('bg-blue-900/30 text-blue-300 rounded px-1.5 py-0.5 text-sm font-mono', className)}>
+        <code 
+          {...props} 
+          className={cn(
+            'bg-[#1a1a1a] text-[#e06c75] rounded px-1.5 py-0.5',
+            'text-[0.9em] font-mono',
+            className
+          )}
+        >
           {children}
         </code>
       )
     },
+    // Medium-style headings
     h1: ({ children }: { children?: React.ReactNode }) => (
-      <h1 className="text-4xl font-bold mt-8 mb-6 text-white tracking-tight">{children}</h1>
+      <h1 className="text-[32px] font-bold mt-12 mb-4 text-white leading-[1.2] tracking-[-0.02em] first:mt-0">
+        {children}
+      </h1>
     ),
     h2: ({ children }: { children?: React.ReactNode }) => (
-      <h2 className="text-3xl font-bold mt-6 mb-4 text-white tracking-tight">{children}</h2>
+      <h2 className="text-[24px] font-bold mt-10 mb-4 text-white leading-[1.25] tracking-[-0.01em]">
+        {children}
+      </h2>
     ),
     h3: ({ children }: { children?: React.ReactNode }) => (
-      <h3 className="text-2xl font-semibold mt-5 mb-3 text-white">{children}</h3>
+      <h3 className="text-[20px] font-semibold mt-8 mb-3 text-white leading-[1.3]">
+        {children}
+      </h3>
     ),
+    // Medium uses a specific font size and line height for body text
     p: ({ children }: { children?: React.ReactNode }) => (
-      <p className="mb-4 text-gray-300 leading-relaxed text-[1.05rem]">{children}</p>
+      <p className="text-[18px] leading-[1.75] mb-6 text-[#e6e6e6] font-normal">
+        {children}
+      </p>
     ),
+    // Lists with proper spacing
     ul: ({ children }: { children?: React.ReactNode }) => (
-      <ul className="list-disc list-inside mb-4 space-y-2 text-gray-300">{children}</ul>
+      <ul className="text-[18px] leading-[1.75] mb-6 ml-6 text-[#e6e6e6] list-disc space-y-2">
+        {children}
+      </ul>
     ),
     ol: ({ children }: { children?: React.ReactNode }) => (
-      <ol className="list-decimal list-inside mb-4 space-y-2 text-gray-300">{children}</ol>
+      <ol className="text-[18px] leading-[1.75] mb-6 ml-6 text-[#e6e6e6] list-decimal space-y-2">
+        {children}
+      </ol>
     ),
     li: ({ children }: { children?: React.ReactNode }) => (
-      <li className="ml-2 leading-relaxed">{children}</li>
+      <li className="pl-2">{children}</li>
     ),
+    // Medium-style blockquote with left border
     blockquote: ({ children }: { children?: React.ReactNode }) => (
-      <blockquote className="border-l-4 border-blue-500/50 pl-4 py-2 my-4 italic text-gray-400 bg-blue-500/5 rounded-r-lg">
+      <blockquote className="border-l-[3px] border-white/30 pl-6 my-8 italic text-[20px] leading-[1.6] text-[#a0a0a0]">
         {children}
       </blockquote>
     ),
+    // Emphasis styles
     strong: ({ children }: { children?: React.ReactNode }) => (
       <strong className="font-semibold text-white">{children}</strong>
     ),
     em: ({ children }: { children?: React.ReactNode }) => (
-      <em className="italic text-blue-200">{children}</em>
+      <em className="italic">{children}</em>
+    ),
+    // Links
+    a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+      <a 
+        href={href} 
+        className="text-white underline decoration-white/40 underline-offset-2 hover:decoration-white/80 transition-colors"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    ),
+    // Horizontal rule
+    hr: () => (
+      <hr className="my-10 border-0 h-px bg-white/10" />
+    ),
+    // Images (if any)
+    img: ({ src, alt }: { src?: string; alt?: string }) => (
+      <figure className="my-8">
+        <img 
+          src={src} 
+          alt={alt} 
+          className="w-full rounded-lg"
+        />
+        {alt && (
+          <figcaption className="mt-3 text-center text-[14px] text-[#757575]">
+            {alt}
+          </figcaption>
+        )}
+      </figure>
     ),
   }), [])
 
-  // Smart scroll handler - detects user intent
-  const handleScroll = useCallback(() => {
-    if (!scrollRef.current) return
-    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
-    const distanceToBottom = scrollHeight - scrollTop - clientHeight
-    
-    // Within 100px of bottom = following the stream
-    if (distanceToBottom < 100) {
-      setUserHasScrolledUp(false)
-    } else {
-      setUserHasScrolledUp(true)
-    }
-  }, [])
+  // ============================================
+  // AUTO-SCROLL LOGIC (MAXIMUM SENSITIVITY)
+  // ============================================
+  // Uses refs for instant response, no React state delays
+  // ============================================
 
-  // Auto-scroll effect - scroll to bottom when new content arrives
-  useEffect(() => {
-    if (isStreaming && !userHasScrolledUp && scrollRef.current) {
-      // Use requestAnimationFrame for smoother scrolling
-      requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-        }
-      })
+  const isFollowingRef = useRef(isFollowing)
+  isFollowingRef.current = isFollowing
+
+  // MAXIMUM sensitivity - use useLayoutEffect for synchronous execution
+  useLayoutEffect(() => {
+    if (!isStreaming) return
+
+    const stopAutoScroll = () => {
+      // Use ref to check current state instantly
+      if (isFollowingRef.current) {
+        setIsFollowing(false)
+        setShowFollowButton(true)
+      }
     }
-  }, [content, isStreaming, userHasScrolledUp])
+
+    // ALL possible user scroll events at document level with capture
+    const events = [
+      'wheel',           // Mouse wheel
+      'touchstart',      // Finger touches screen
+      'touchmove',       // Finger moves
+      'mousedown',       // Mouse button down (for drag scroll)
+      'pointerdown',     // Pointer events
+      'pointermove',     // Pointer move
+    ]
+
+    // Add all listeners at document level with capture phase
+    events.forEach(event => {
+      document.addEventListener(event, stopAutoScroll, { capture: true, passive: true })
+    })
+
+    // Keyboard separately to filter keys
+    const handleKey = (e: KeyboardEvent) => {
+      const scrollKeys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', ' ', 'Home', 'End']
+      if (scrollKeys.includes(e.key)) {
+        stopAutoScroll()
+      }
+    }
+    document.addEventListener('keydown', handleKey, { capture: true })
+    
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, stopAutoScroll, { capture: true } as EventListenerOptions)
+      })
+      document.removeEventListener('keydown', handleKey, { capture: true })
+    }
+  }, [isStreaming])
+
+  // Detect when user scrolls to bottom to re-enable auto-scroll
+  useEffect(() => {
+    if (!isStreaming || isFollowing) return
+
+    const checkIfAtBottom = () => {
+      const scrollTop = window.scrollY
+      const scrollHeight = document.documentElement.scrollHeight
+      const clientHeight = window.innerHeight
+      const distanceToBottom = scrollHeight - scrollTop - clientHeight
+      
+      if (distanceToBottom < 50) {
+        setIsFollowing(true)
+        setShowFollowButton(false)
+      }
+    }
+
+    window.addEventListener('scroll', checkIfAtBottom, { passive: true })
+    return () => window.removeEventListener('scroll', checkIfAtBottom)
+  }, [isStreaming, isFollowing])
+
+  // Perform auto-scroll when visible lines change
+  useEffect(() => {
+    if (!isStreaming || !isFollowing) return
+
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+  }, [visibleLineCount, isStreaming, isFollowing])
+
+  // When streaming starts, enable auto-scroll
+  useEffect(() => {
+    if (isStreaming) {
+      setIsFollowing(true)
+      setShowFollowButton(false)
+    }
+  }, [isStreaming])
 
   // Empty state
   if (!content && !isStreaming) {
     return (
-      <div className={cn('text-gray-500 italic', className)}>
+      <div className={cn('text-[#757575] italic text-[18px]', className)}>
         No content generated yet.
       </div>
     )
   }
 
   return (
-    <div className="relative group">
-      {/* Main scrollable container */}
-      <div 
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className={cn(
-          "h-[75vh] overflow-y-auto pr-4",
-          // Custom scrollbar styling
-          "[&::-webkit-scrollbar]:w-2",
-          "[&::-webkit-scrollbar-track]:bg-transparent",
-          "[&::-webkit-scrollbar-thumb]:bg-white/10",
-          "[&::-webkit-scrollbar-thumb]:rounded-full",
-          "[&::-webkit-scrollbar-thumb]:hover:bg-white/20",
-          className
-        )}
-      >
-        <div className="min-h-full pb-12">
-          {/* Render full markdown content */}
-          <ReactMarkdown 
-            remarkPlugins={[remarkGfm]} 
-            components={markdownComponents}
-          >
-            {content}
-          </ReactMarkdown>
-          
-          {/* Streaming indicator with elegant pulsing cursor */}
-          {isStreaming && (
-            <div className="mt-6 flex items-center gap-3">
-              <div className="flex gap-1">
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"
-                    style={{ animationDelay: `${i * 150}ms` }}
-                  />
-                ))}
-              </div>
-              <span className="text-sm text-blue-400/80 font-medium">Generating...</span>
-            </div>
-          )}
-        </div>
+    <div className={cn("relative", className)}>
+      {/* Visible lines - released at even pace with animation */}
+      <div className="space-y-0">
+        {visibleLines.map((line, index) => {
+          // Last visible line animates in
+          const isNew = index === visibleLineCount - 1
+          return (
+            <AnimatedLine key={`line-${index}`} index={0} isNew={isNew}>
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]} 
+                components={markdownComponents}
+              >
+                {line}
+              </ReactMarkdown>
+            </AnimatedLine>
+          )
+        })}
       </div>
+      
+      {/* Loading indicator while buffering/releasing lines */}
+      {(isStreaming || hasBufferedLines) && (
+        <div className="flex items-center gap-2 mt-4 text-[#757575]">
+          <motion.div
+            className="flex gap-1"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <motion.span
+              className="w-2 h-2 bg-white/40 rounded-full"
+              animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1, repeat: Infinity, delay: 0 }}
+            />
+            <motion.span
+              className="w-2 h-2 bg-white/40 rounded-full"
+              animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
+            />
+            <motion.span
+              className="w-2 h-2 bg-white/40 rounded-full"
+              animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
+            />
+          </motion.div>
+        </div>
+      )}
 
-      {/* Scroll-to-bottom button (appears when user scrolls up during streaming) */}
+      {/* Follow button - appears when user scrolls up during streaming */}
       <AnimatePresence>
-        {userHasScrolledUp && isStreaming && (
+        {showFollowButton && isStreaming && (
           <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
             onClick={() => {
-              setUserHasScrolledUp(false)
-              if (scrollRef.current) {
-                scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-              }
+              setIsFollowing(true)
+              setShowFollowButton(false)
+              window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
             }}
             className={cn(
-              "absolute bottom-4 right-4 p-3",
-              "bg-blue-600 hover:bg-blue-500",
-              "text-white rounded-full shadow-lg",
-              "transition-colors z-10 flex items-center gap-2"
+              "fixed bottom-6 right-6 px-4 py-3",
+              "bg-white text-black text-sm font-medium rounded-full",
+              "shadow-lg shadow-black/30",
+              "transition-colors flex items-center gap-2",
+              "hover:bg-gray-100 active:scale-95",
+              "z-50"
             )}
           >
-            <ArrowDown className="w-5 h-5" />
-            <span className="text-sm font-medium pr-1">Resume</span>
+            <ArrowDown className="w-4 h-4" />
+            <span>Follow</span>
           </motion.button>
         )}
       </AnimatePresence>
