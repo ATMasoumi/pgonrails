@@ -59,9 +59,11 @@ const serperSearch = async (query: string, retries = 2): Promise<{ organic: Arra
 import { checkAndIncrementUsage } from '@/lib/token-usage'
 import { getUserSubscriptionStatus } from '@/lib/subscription'
 
-const openaiClient = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+function getOpenAIClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  })
+}
 
 async function generateInitialTree(supabase: SupabaseClient, rootId: string, query: string, userId: string) {
   try {
@@ -586,6 +588,7 @@ export async function generatePodcast(documentId: string) {
   await checkAndIncrementUsage(user.id, charCount, 'tts-1')
 
   // Generate audio
+  const openaiClient = getOpenAIClient()
   const mp3 = await openaiClient.audio.speech.create({
     model: "tts-1",
     voice: "alloy",
