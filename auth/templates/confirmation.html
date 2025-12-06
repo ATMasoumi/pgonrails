@@ -1,9 +1,11 @@
 <h2>Confirm your email</h2>
 
-<p>Follow this link to confirm your email:</p>
+<p>Your verification code is:</p>
+<h1>{{ .Token }}</h1>
+
+<p>Or follow this link to confirm your email:</p>
 <p>
     <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">
         Confirm your email address
     </a>
 </p>
-<p>Alternatively, enter the code: {{ .Token }}</p>

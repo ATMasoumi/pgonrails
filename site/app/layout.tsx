@@ -33,7 +33,18 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { isPro, userId, user } = await getUserSubscriptionStatus();
+  let isPro = false;
+  let userId = null;
+  let user = null;
+
+  try {
+    const status = await getUserSubscriptionStatus();
+    isPro = status.isPro;
+    userId = status.userId;
+    user = status.user;
+  } catch (error) {
+    console.error("Failed to get user subscription status:", error);
+  }
 
   return (
     <html lang="en">

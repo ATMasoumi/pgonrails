@@ -63,9 +63,25 @@ export async function signup(currentState: { message: string }, formData: FormDa
     })
 
     if (signUpError) {
+        console.log("Signup error:", signUpError)
         if (signUpError.message.includes("already registered")) {
+            console.log("User already registered, attempting resend...")
+            // Try to resend verification code to see if they are unverified
+            const { error: resendError } = await supabase.auth.resend({
+                type: 'signup',
+                email: formData.get('email') as string,
+            })
+
+            console.log("Resend error:", resendError)
+
+            // If resend is successful, they are unverified. Redirect them to enter code.
+            if (!resendError) {
+                console.log("Resend successful, redirecting to verify-email")
+                redirect(`/verify-email?email=${encodeURIComponent(formData.get('email') as string)}`)
+            }
+
             return {
-                message: "An account with this email already exists. Please sign in instead."
+                message: "An account with this email already exists. Please sign in."
             }
         }
 
@@ -75,17 +91,43 @@ export async function signup(currentState: { message: string }, formData: FormDa
     }
 
     if (!signUpData?.user) {
+        console.log("No user data returned")
         return {
             message: "Failed to create user"
         }
     }
 
+    console.log("Signup successful, user:", signUpData.user.id)
+    console.log("User metadata:", JSON.stringify(signUpData.user.user_metadata, null, 2))
+    console.log("Email verified:", signUpData.user.user_metadata.email_verified)
+    console.log("Session:", signUpData.session ? "Present" : "Missing")
+
     // Redirect straight to dashboard if they are auto-confirming emails
-    if (signUpData.user.user_metadata.email_verified) {
+    if (signUpData.user.email_confirmed_at) {
+        console.log("User auto-verified, redirecting to dashboard")
         redirect("/dashboard?message=Welcome!+You+successfully+signed+up.&refresh_browser_auth")
     }
 
-    redirect("/signup?message=Please+check+your+email+to+confirm+your+signup.")
+    console.log("Redirecting to verify-email")
+    redirect(`/verify-email?email=${encodeURIComponent(formData.get('email') as string)}`)
+}
+
+export async function verifyEmail(currentState: { message: string }, formData: FormData) {
+    const supabase = await createClient()
+    const email = formData.get('email') as string
+    const token = formData.get('code') as string
+
+    const { error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'signup'
+    })
+
+    if (error) {
+        return { message: error.message }
+    }
+
+    redirect("/dashboard?message=Email+verified!&refresh_browser_auth")
 }
 
 

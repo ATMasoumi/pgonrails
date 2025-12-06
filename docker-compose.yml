@@ -42,7 +42,7 @@ services:
       SUPABASE_URL: http://${KONG_HOST}:${KONG_PORT}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
 
-      DB_PRIVATE_CONNECTION_STRING: postgres://postgres:${DB_SUPERUSER_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
+      DB_PRIVATE_CONNECTION_STRING: postgres://postgres:${DB_SUPERUSER_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
 
   studio:
     build: ./studio
@@ -169,19 +169,20 @@ services:
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
       GOTRUE_JWT_EXP: ${JWT_EXPIRY}
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_LOG_LEVEL: debug
 
       # When set to "true", to change their password, users must provide a OTP from their email or phone
       GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION: ${GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION}
 
       # Set to "true" to disable emails, which can be useful in development. Set to "false" to require email confirmations.
-      GOTRUE_MAILER_AUTOCONFIRM: true
+      GOTRUE_MAILER_AUTOCONFIRM: false
 
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
       GOTRUE_SMTP_HOST: ${SMTP_HOST}
       GOTRUE_SMTP_PORT: ${SMTP_PORT}
       GOTRUE_SMTP_USER: ${SMTP_USER}
       GOTRUE_SMTP_PASS: ${SMTP_PASS}
-      GOTRUE_SMTP_SENDER_NAME: "PG On Rails"
+      GOTRUE_SMTP_SECURE: "true"
 
       GOTRUE_MAILER_EXTERNAL_HOSTS: ${KONG_HOST},${SITE_HOST},localhost
 
