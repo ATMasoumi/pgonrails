@@ -182,7 +182,7 @@ services:
       GOTRUE_SMTP_PORT: ${SMTP_PORT}
       GOTRUE_SMTP_USER: ${SMTP_USER}
       GOTRUE_SMTP_PASS: ${SMTP_PASS}
-      GOTRUE_SMTP_SECURE: "true"
+      GOTRUE_SMTP_SECURE: ${SMTP_SECURE:-true}
 
       GOTRUE_MAILER_EXTERNAL_HOSTS: ${KONG_HOST},${SITE_HOST},localhost
 
@@ -558,3 +558,11 @@ services:
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 100
       DEFAULT_POOL_SIZE: 20
+
+  inbucket:
+    image: inbucket/inbucket:3.0.3
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "2500:2500"
+      - "1100:1100"

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { User } from "@supabase/supabase-js";
 import "./globals.css";
 import { AppContextProvider } from "@/lib/contexts/appContext";
 import { PodcastProvider } from "@/lib/contexts/PodcastContext";
@@ -34,8 +35,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   let isPro = false;
-  let userId = null;
-  let user = null;
+  let userId: string | null = null;
+  let user: User | null = null;
 
   try {
     const status = await getUserSubscriptionStatus();
