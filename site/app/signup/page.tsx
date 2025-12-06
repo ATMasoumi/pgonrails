@@ -25,11 +25,6 @@ export default function Signup() {
                     <Link href="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors text-sm">
                         <ArrowLeft className="w-4 h-4" /> Back to Home
                     </Link>
-                    <div className="flex justify-center mb-6">
-                        <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/10">
-                            <Image src="/logo.png" alt="logo" width={32} height={32} className="w-8 h-8" />
-                        </div>
-                    </div>
                     <h1 className="text-3xl font-bold mb-2">Create an account</h1>
                     <p className="text-gray-400">Join DocTree and start learning visually</p>
                 </div>
