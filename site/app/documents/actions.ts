@@ -8,7 +8,54 @@ import { generateText, generateObject } from 'ai'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import OpenAI from 'openai'
-import { search, SafeSearchType } from 'duck-duck-scrape'
+// Serper API helper for Google search with retry
+const serperSearch = async (query: string, retries = 2): Promise<{ organic: Array<{ title: string; link: string; snippet?: string }> }> => {
+  const apiKey = process.env.SERPER_API_KEY;
+  
+  if (!apiKey) {
+    console.log('[Serper] No API key found');
+    throw new Error('Serper API key not configured');
+  }
+  
+  console.log('[Serper] Searching:', query.substring(0, 50) + '...');
+  
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch('https://google.serper.dev/search', {
+        method: 'POST',
+        headers: {
+          'X-API-KEY': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ q: query, num: 20 })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Serper] API error:', response.status, errorText);
+        throw new Error(`Serper API error: ${response.status} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log('[Serper] Got', data.organic?.length || 0, 'results');
+      return data;
+    } catch (error: unknown) {
+      const isNetworkError = error instanceof Error && 
+        (error.message.includes('fetch failed') || 
+         error.message.includes('ENOTFOUND') ||
+         error.cause?.toString().includes('ENOTFOUND'));
+      
+      if (isNetworkError && attempt < retries) {
+        console.log(`[Serper] Network error, retrying in ${(attempt + 1) * 2}s... (attempt ${attempt + 1}/${retries})`);
+        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 2000));
+        continue;
+      }
+      throw error;
+    }
+  }
+  
+  throw new Error('Serper search failed after retries');
+}
 import { checkAndIncrementUsage } from '@/lib/token-usage'
 import { getUserSubscriptionStatus } from '@/lib/subscription'
 
@@ -20,35 +67,57 @@ async function generateInitialTree(supabase: SupabaseClient, rootId: string, que
   try {
     const { object, usage } = await generateObject({
       model: openai('gpt-5-mini'),
-      system: `You are a world-class curriculum designer and subject matter expert. Your task is to create an optimal learning tree that transforms any topic into a structured, pedagogically-sound knowledge map.
+      system: `You are an expert that generates clean, balanced knowledge trees for any topic.
+Your job is to break the topic into a hierarchy of subtopics that covers the whole concept, without being too shallow or too detailed.
 
-PRINCIPLES:
-1. **Progressive Complexity**: Start with foundational concepts, then build to advanced topics
-2. **Logical Dependencies**: Order subtopics so prerequisites come before dependent concepts
-3. **Comprehensive Coverage**: Include all essential areas - theory, practice, history, and applications
-4. **Balanced Depth**: Aim for 4-7 main branches, each with 3-5 sub-branches
-5. **Actionable Titles**: Use clear, specific titles that indicate what the learner will understand
+TREE STRUCTURE:
+- Level 1: 4-8 major subtopics that cover the entire subject
+- Level 2: For each Level 1 node, add 3-7 more specific subtopics  
+- Level 3 (optional): Only if needed, add 2-5 very focused subtopics under some Level 2 nodes
+- Keep the tree between 20 and 60 total nodes
+- Maintain balanced structure - avoid one huge branch and many tiny ones
 
-STRUCTURE GUIDELINES:
-- First branch: Fundamentals/Introduction/Core Concepts
-- Middle branches: Main subject areas in logical learning order
-- Later branches: Advanced topics, applications, and real-world connections
-- Final branch: Current trends, future directions, or practical projects
+TITLE RULES (Critical for searchability):
+- Short, clear, readable: 3-6 words preferred, maximum 8 words
+- Each title must be searchable on the internet
+- Include the main keyword of that subtopic
+- Use concrete, Google-friendly phrases like:
+  ✓ "Supervised learning algorithms"
+  ✓ "iOS concurrency with async/await"  
+  ✓ "Database indexing strategies"
+- Avoid vague or poetic titles like:
+  ✗ "Going deeper"
+  ✗ "The journey begins"
+  ✗ "Understanding more"
+- No emojis, no special characters, no numbering
 
-TITLE FORMAT:
-- Be specific and descriptive (e.g., "Newton's Laws of Motion" not just "Laws")
-- Avoid vague terms like "Basics" or "Overview" - specify what basics
-- Use active language when appropriate (e.g., "Understanding X" or "Applying Y")`,
-      prompt: `Create a comprehensive learning tree for: "${query}"
+CONTENT COVERAGE:
+- Fundamentals and definitions
+- Key components and categories
+- Methods, workflows, techniques
+- Tools and technologies (if relevant)
+- Use cases and applications
+- Common mistakes and pitfalls
+- Advanced or future directions (if relevant)
 
-Generate a well-structured knowledge tree that would help someone master this topic from beginner to advanced level.`,
+GRANULARITY:
+- Each node should represent a meaningful subtopic
+- Could be the title of an article, podcast episode, or quiz section
+- Not so detailed it becomes trivia
+- Not so high-level the tree feels empty`,
+      prompt: `Create a comprehensive knowledge tree for: "${query}"
+
+Generate a well-structured tree that helps someone master this topic from beginner to advanced level. Return subtopics organized hierarchically.`,
       schema: z.object({
         subtopics: z.array(z.object({
-          query: z.string(),
+          query: z.string().describe("Level 1 subtopic title - 3-8 words, searchable"),
           subtopics: z.array(z.object({
-            query: z.string()
+            query: z.string().describe("Level 2 subtopic title - 3-8 words, searchable"),
+            subtopics: z.array(z.object({
+              query: z.string().describe("Level 3 subtopic title - 3-8 words, searchable")
+            })).optional().describe("Optional Level 3 subtopics, only if needed for complex areas")
           })).optional()
-        }))
+        })).describe("4-8 major subtopics covering the entire subject")
       })
     })
 
@@ -77,18 +146,39 @@ Generate a well-structured knowledge tree that would help someone master this to
       }
 
       if (subtopic.subtopics && subtopic.subtopics.length > 0) {
-        const l2Nodes = subtopic.subtopics.map(st => ({
-          user_id: userId,
-          query: st.query,
-          parent_id: l1Node.id,
-          content: null
-        }))
-        
-        const { error: l2Error } = await supabase
-          .from('documents')
-          .insert(l2Nodes)
+        for (const l2Subtopic of subtopic.subtopics) {
+          const { data: l2Node, error: l2Error } = await supabase
+            .from('documents')
+            .insert({
+              user_id: userId,
+              query: l2Subtopic.query,
+              parent_id: l1Node.id,
+              content: null
+            })
+            .select()
+            .single()
           
-        if (l2Error) console.error('Error inserting L2 nodes:', l2Error)
+          if (l2Error) {
+            console.error('Error inserting L2 node:', l2Error)
+            continue
+          }
+
+          // Insert Level 3 nodes if they exist
+          if (l2Subtopic.subtopics && l2Subtopic.subtopics.length > 0) {
+            const l3Nodes = l2Subtopic.subtopics.map(st => ({
+              user_id: userId,
+              query: st.query,
+              parent_id: l2Node.id,
+              content: null
+            }))
+            
+            const { error: l3Error } = await supabase
+              .from('documents')
+              .insert(l3Nodes)
+              
+            if (l3Error) console.error('Error inserting L3 nodes:', l3Error)
+          }
+        }
       }
     }
   } catch (error) {
@@ -178,29 +268,36 @@ async function processTopicGeneration(
     try {
       const { object, usage } = await generateObject({
         model: openai('gpt-5-mini'),
-        system: `You are an expert curriculum designer specializing in breaking down complex topics into learnable components.
+        system: `You are an expert that generates focused subtopics for knowledge trees.
 
-Your task is to generate subtopics that:
-1. **Fit the Context**: Each subtopic must be specifically relevant to the parent topic within the given learning path
-2. **Are Appropriately Scoped**: Not too broad (could be its own course) or too narrow (just a detail)
-3. **Follow Learning Order**: Prerequisites and fundamentals first, then applications and advanced concepts
-4. **Are Distinct**: No overlapping subtopics - each covers unique ground
-5. **Are Actionable**: Titles should clearly indicate what the learner will understand or be able to do
+SUBTOPIC GENERATION RULES:
+- Generate 4-7 subtopics that break down the topic into learnable parts
+- Each subtopic must be specifically relevant to the parent topic
+- Scope appropriately: not too broad, not too narrow
+- Prerequisites first, then applications and advanced concepts
+- No overlapping subtopics - each covers unique ground
 
-GENERATE 5-8 SUBTOPICS that would help someone deeply understand the topic in context.
-
-Title Guidelines:
-- Be specific: "Gradient Descent Optimization" not "Optimization"
-- Include key terms someone would search for
-- Avoid redundancy with parent topic name
-- Use consistent style (all noun phrases or all "Understanding X" format)`,
+TITLE RULES (Critical for searchability):
+- Short and clear: 3-6 words preferred, maximum 8 words
+- Must be searchable on the internet
+- Include the main keyword of that subtopic
+- Use concrete, Google-friendly phrases like:
+  ✓ "Binary search tree operations"
+  ✓ "React state management patterns"
+  ✓ "SQL join query optimization"
+- Avoid vague titles like:
+  ✗ "More details"
+  ✗ "Going deeper"
+  ✗ "Advanced concepts"
+- No emojis, no special characters, no numbering
+- Avoid redundancy with parent topic name`,
         prompt: `Learning Path: ${contextString}
 
 Generate focused subtopics for: "${currentTopic}"
 
 These subtopics should help someone who has followed the learning path above to deeply understand ${currentTopic}.`,
         schema: z.object({
-          subtopics: z.array(z.string())
+          subtopics: z.array(z.string().describe("Subtopic title - 3-8 words, searchable, specific"))
         })
       })
 
@@ -766,66 +863,165 @@ export async function generateResources(documentId: string, topic: string, conte
 
   try {
     let searchContext = '';
-    try {
-      // Perform web searches to get real-time data
-      // Run sequentially with delays to avoid rate limiting
-      const videoResults = await search(`${topic} best youtube videos tutorials`, { safeSearch: SafeSearchType.STRICT });
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Check if Serper API key is available
+    const serperApiKey = process.env.SERPER_API_KEY;
+    
+    if (serperApiKey) {
+      try {
+        console.log('[Resources] Starting Serper search for topic:', topic);
+        
+        // Use Serper (Google Search) for reliable web search
+        // Run searches in parallel for speed
+        const [youtubeResponse, articleResponse, bookResponse, expertResponse] = await Promise.all([
+          serperSearch(`site:youtube.com ${topic} tutorial course explained`),
+          serperSearch(`${topic} tutorial guide site:medium.com OR site:dev.to OR site:freecodecamp.org`),
+          serperSearch(`${topic} best books site:goodreads.com OR site:amazon.com`),
+          serperSearch(`${topic} expert site:twitter.com OR site:linkedin.com`)
+        ]);
 
-      const articleResults = await search(`${topic} best articles documentation guide`, { safeSearch: SafeSearchType.STRICT });
-      await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('[Resources] Serper raw responses:', {
+          youtube: youtubeResponse.organic?.length || 0,
+          articles: articleResponse.organic?.length || 0,
+          books: bookResponse.organic?.length || 0,
+          experts: expertResponse.organic?.length || 0
+        });
 
-      const bookResults = await search(`${topic} best books`, { safeSearch: SafeSearchType.STRICT });
-      await new Promise(resolve => setTimeout(resolve, 2000));
+        // Extract and categorize results
+        const youtubeResults = (youtubeResponse.organic || [])
+          .filter(r => r.link.includes('youtube.com/watch') || r.link.includes('youtu.be'))
+          .slice(0, 6);
+        
+        const articleResults = (articleResponse.organic || [])
+          .filter(r => !r.link.includes('youtube.com'))
+          .slice(0, 6);
+        
+        const bookResults = (bookResponse.organic || [])
+          .filter(r => r.link.includes('amazon.com') || r.link.includes('goodreads.com'))
+          .slice(0, 4);
+        
+        const expertResults = (expertResponse.organic || [])
+          .filter(r => r.link.includes('twitter.com') || r.link.includes('x.com') || r.link.includes('linkedin.com'))
+          .slice(0, 4);
 
-      const influencerResults = await search(`${topic} top experts influencers`, { safeSearch: SafeSearchType.STRICT });
+        console.log('[Resources] Filtered results:', {
+          youtube: youtubeResults.map(r => ({ title: r.title, url: r.link })),
+          articles: articleResults.map(r => ({ title: r.title, url: r.link })),
+          books: bookResults.map(r => ({ title: r.title, url: r.link })),
+          experts: expertResults.map(r => ({ title: r.title, url: r.link }))
+        });
 
-      searchContext = `
-        YouTube Search Results:
-        ${videoResults.results.slice(0, 5).map(r => `- ${r.title}: ${r.url}`).join('\n')}
+        searchContext = `
+=== YOUTUBE VIDEOS (from Google search) ===
+${youtubeResults.length > 0 ? youtubeResults.map(r => `Title: ${r.title}\nURL: ${r.link}\nDescription: ${r.snippet || 'N/A'}`).join('\n\n') : 'No YouTube results found.'}
 
-        Article Search Results:
-        ${articleResults.results.slice(0, 5).map(r => `- ${r.title}: ${r.url}`).join('\n')}
+=== ARTICLES & DOCUMENTATION (from Google search) ===
+${articleResults.length > 0 ? articleResults.map(r => `Title: ${r.title}\nURL: ${r.link}\nSource: ${new URL(r.link).hostname.replace('www.', '')}`).join('\n\n') : 'No article results found.'}
 
-        Book Search Results:
-        ${bookResults.results.slice(0, 5).map(r => `- ${r.title}: ${r.url}`).join('\n')}
+=== BOOKS (from Google search) ===
+${bookResults.length > 0 ? bookResults.map(r => `Title: ${r.title}\nURL: ${r.link}`).join('\n\n') : 'No book results found.'}
 
-        Influencer Search Results:
-        ${influencerResults.results.slice(0, 5).map(r => `- ${r.title}: ${r.url}`).join('\n')}
-      `;
-    } catch (error) {
-      console.error('Web search failed:', error);
-      searchContext = "Web search failed. Please generate resources based on your internal knowledge. Ensure links are valid and well-known.";
+=== EXPERTS (from Google search) ===
+${expertResults.length > 0 ? expertResults.map(r => `Title: ${r.title}\nURL: ${r.link}`).join('\n\n') : 'No expert profiles found.'}
+        `;
+        
+        console.log('[Resources] Serper search completed successfully');
+        console.log('[Resources] Search context length:', searchContext.length, 'chars');
+      } catch (searchError) {
+        console.error('[Resources] Serper search failed:', searchError);
+        searchContext = '';
+      }
+    }
+    
+    // If no search results (no API key or search failed), use AI knowledge
+    if (!searchContext) {
+      console.log('[Resources] Using AI knowledge for resource generation');
+      searchContext = `No web search available. Generate high-quality resources based on your knowledge:
+
+For the topic "${topic}", recommend REAL, VERIFIED resources:
+- Well-known YouTube channels and their specific educational videos
+- Popular articles from Medium, freeCodeCamp, dev.to, official documentation
+- Classic and highly-rated books with real authors
+- Recognized experts and thought leaders with real Twitter/LinkedIn handles
+
+IMPORTANT: Only recommend resources you are confident actually exist.`;
     }
 
     const { object, usage } = await generateObject({
       model: openai('gpt-5-mini'),
-      system: "You are a helpful research assistant. Your goal is to find high-quality learning resources for the given topic. Use the provided search results to generate a curated list of YouTube videos, articles, books, and influencers. Prioritize using the actual links and titles found in the search results to ensure accuracy.",
-      prompt: `Find learning resources for the topic: "${topic}". \n\nContext/Content: ${content ? content.substring(0, 500) : 'No content provided'}\n\nWeb Search Results:\n${searchContext}`,
+      system: `You are an expert educational curator specializing in finding the highest quality learning resources. Your goal is to recommend ONLY genuinely useful, verified resources that will help someone master the given topic.
+
+CRITICAL GUIDELINES:
+
+For YouTube Videos:
+- If search results are available, use URLs from them
+- If not, recommend well-known educational channels (e.g., 3Blue1Brown, Fireship, Traversy Media, freeCodeCamp, etc.)
+- Use valid YouTube URL format: https://www.youtube.com/watch?v=VIDEO_ID or https://www.youtube.com/@CHANNEL
+- Prefer channels with educational focus and high-quality production
+
+For Articles:
+- Prefer articles from reputable sources: official documentation, Medium publications, dev.to, freeCodeCamp, etc.
+- Look for comprehensive guides, tutorials, and in-depth explanations
+- Include the actual domain as the source (e.g., "Medium", "freeCodeCamp", "Official Docs")
+
+For Books:
+- Recommend well-established, highly-rated books on the topic
+- Include classic texts and modern essentials
+- Provide a brief description of why each book is valuable
+
+For Experts/Influencers:
+- Recommend real, verifiable experts in the field
+- Include their primary platform (Twitter, LinkedIn, YouTube, etc.)
+- Provide their actual handle/username when available
+- Only include people who actively share educational content
+
+IMPORTANT: Only return resources you are confident are real and useful. Quality over quantity.`,
+      prompt: `Find the best learning resources for: "${topic}"
+
+Topic Context: ${content ? content.substring(0, 800) : 'No additional context'}
+
+Web Search Results:
+${searchContext}
+
+Based on these search results and your knowledge, provide the highest quality learning resources. Use the actual URLs from the search results when available.`,
       schema: z.object({
         youtubeVideos: z.array(z.object({
-          title: z.string(),
-          url: z.string(),
-          channelName: z.string()
-        })).describe("List of 3-5 relevant YouTube videos"),
+          title: z.string().describe("The exact video title"),
+          url: z.string().describe("Full YouTube URL (must be youtube.com/watch?v= format)"),
+          channelName: z.string().describe("The YouTube channel name")
+        })).describe("3-5 high-quality educational YouTube videos"),
         articles: z.array(z.object({
-          title: z.string(),
-          url: z.string(),
-          source: z.string()
-        })).describe("List of 3-5 relevant articles or documentation"),
+          title: z.string().describe("The article title"),
+          url: z.string().describe("Full article URL"),
+          source: z.string().describe("The website name (e.g., 'Medium', 'freeCodeCamp', 'Official Docs')")
+        })).describe("3-5 comprehensive articles or documentation pages"),
         books: z.array(z.object({
-          title: z.string(),
-          author: z.string(),
-          description: z.string()
-        })).describe("List of 2-3 relevant books"),
+          title: z.string().describe("The book title"),
+          author: z.string().describe("The author's name"),
+          description: z.string().describe("Why this book is valuable for learning this topic (1-2 sentences)")
+        })).describe("2-4 highly recommended books"),
         influencers: z.array(z.object({
-          name: z.string(),
-          platform: z.string(),
-          handle: z.string(),
-          description: z.string()
-        })).describe("List of 3-5 key influencers or experts in this field")
+          name: z.string().describe("The person's real name"),
+          platform: z.string().describe("Primary platform: 'Twitter', 'LinkedIn', 'YouTube', etc."),
+          handle: z.string().describe("Their username/handle on the platform"),
+          description: z.string().describe("Their expertise and why they're worth following (1 sentence)")
+        })).describe("3-5 recognized experts who share educational content")
       })
     })
+
+    // Post-process to validate and clean URLs
+    const cleanedObject = {
+      youtubeVideos: object.youtubeVideos.filter(v => 
+        v.url.includes('youtube.com/watch') || v.url.includes('youtu.be')
+      ),
+      articles: object.articles.filter(a => 
+        a.url.startsWith('http') && !a.url.includes('youtube.com')
+      ),
+      books: object.books,
+      influencers: object.influencers.filter(i => 
+        i.name && i.platform && i.handle
+      )
+    };
 
     if (usage) {
       console.log(`[Resources] Token usage: ${usage.totalTokens} tokens (Model: gpt-5-mini)`)
@@ -839,12 +1035,12 @@ export async function generateResources(documentId: string, topic: string, conte
       .insert({
         document_id: documentId,
         user_id: user.id,
-        data: object
+        data: cleanedObject
       })
 
     if (error) throw error
 
-    return { success: true, resources: object }
+    return { success: true, resources: cleanedObject }
   } catch (error) {
     console.error('Error generating resources:', error)
     return { success: false, error: 'Failed to generate resources' }
@@ -967,3 +1163,128 @@ export async function getChatMessages(documentId: string) {
   return data || []
 }
 
+// ============================================================================
+// DOCUMENT HIGHLIGHTS
+// ============================================================================
+
+export async function getDocumentHighlights(documentId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from('document_highlights')
+    .select('*')
+    .eq('document_id', documentId)
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching highlights:', error)
+    return []
+  }
+
+  return data || []
+}
+
+export async function addDocumentHighlight(documentId: string, highlightedText: string, note?: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  // First check if highlight already exists
+  const { data: existing } = await supabase
+    .from('document_highlights')
+    .select()
+    .eq('document_id', documentId)
+    .eq('user_id', user.id)
+    .eq('highlighted_text', highlightedText)
+    .maybeSingle()
+
+  if (existing) {
+    // If note is provided and different, update it
+    if (note !== undefined && existing.note !== note) {
+      const { data: updated } = await supabase
+        .from('document_highlights')
+        .update({ note })
+        .eq('id', existing.id)
+        .select()
+        .single()
+      return updated
+    }
+    return existing
+  }
+
+  // Insert new highlight
+  const { data, error } = await supabase
+    .from('document_highlights')
+    .insert({
+      document_id: documentId,
+      user_id: user.id,
+      highlighted_text: highlightedText,
+      note: note || null
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error adding highlight:', error)
+    throw new Error('Failed to add highlight')
+  }
+
+  return data
+}
+
+export async function updateDocumentHighlightNote(documentId: string, highlightedText: string, note: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  const { data, error } = await supabase
+    .from('document_highlights')
+    .update({ note })
+    .eq('document_id', documentId)
+    .eq('user_id', user.id)
+    .eq('highlighted_text', highlightedText)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error updating highlight note:', error)
+    throw new Error('Failed to update highlight note')
+  }
+
+  return data
+}
+
+export async function removeDocumentHighlight(documentId: string, highlightedText: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  const { error } = await supabase
+    .from('document_highlights')
+    .delete()
+    .eq('document_id', documentId)
+    .eq('user_id', user.id)
+    .eq('highlighted_text', highlightedText)
+
+  if (error) {
+    console.error('Error removing highlight:', error)
+    throw new Error('Failed to remove highlight')
+  }
+
+  return { success: true }
+}

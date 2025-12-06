@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { DocumentView } from '@/components/DocumentView'
+import { getDocumentHighlights } from '@/app/documents/actions'
 
 export default async function DocumentPage({ 
   params,
@@ -35,7 +36,10 @@ export default async function DocumentPage({
     }
   }
 
+  // Fetch highlights for this document
+  const highlights = await getDocumentHighlights(id)
+
   console.log('Document data:', document)
 
-  return <DocumentView doc={document} rootId={rootId} autoGenerate={autoGenerate === 'true'} />
+  return <DocumentView doc={document} rootId={rootId} autoGenerate={autoGenerate === 'true'} highlights={highlights} />
 }

@@ -30,6 +30,19 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt, pen
 
   const hasStartedRef = useRef(false)
   const [historyLoaded, setHistoryLoaded] = useState(false)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  // Scroll to bottom helper
+  const scrollToBottom = () => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
+    }
+  }
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, isLoading])
 
   useEffect(() => {
     if (isOpen && pendingMessage && historyLoaded) {
@@ -38,6 +51,8 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt, pen
         content: pendingMessage 
       })
       onMessageSent?.()
+      // Scroll to bottom after a short delay to ensure the message is rendered
+      setTimeout(scrollToBottom, 100)
     }
   }, [isOpen, pendingMessage, append, onMessageSent, historyLoaded])
 
@@ -78,11 +93,18 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt, pen
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[500px] bg-[#0A0A0A] shadow-2xl border-l border-white/10 z-50 flex flex-col transform transition-transform duration-300 ease-in-out">
-      {/* Header */}
-      <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#0A0A0A]">
-        <h2 className="font-semibold text-lg text-white">Document Generator</h2>
-        <div className="flex items-center gap-1">
+    <>
+      {/* Backdrop - click to close */}
+      <div 
+        className="fixed inset-0 bg-black/40 z-40"
+        onClick={onClose}
+      />
+      
+      <div className="fixed inset-y-0 right-0 w-[500px] bg-[#0A0A0A] shadow-2xl border-l border-white/10 z-50 flex flex-col transform transition-transform duration-300 ease-in-out">
+        {/* Header */}
+        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#0A0A0A]">
+          <h2 className="font-semibold text-lg text-white">Document Generator</h2>
+          <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={onClose} className="text-gray-400 hover:text-white hover:bg-white/10">
             <X className="w-5 h-5" />
           </Button>
@@ -90,7 +112,7 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt, pen
       </div>
 
       {/* Content Area - Scrollable */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.map((m) => (
           <div key={m.id} className={cn("flex gap-3", m.role === 'user' ? "flex-row-reverse" : "")}>
             <div className={cn(
@@ -164,5 +186,6 @@ export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt, pen
         </form>
       </div>
     </div>
+    </>
   )
 }

@@ -9,6 +9,7 @@ import TaskItem from '@tiptap/extension-task-item'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
+import Highlight from '@tiptap/extension-highlight'
 import { Button } from '@/components/ui/button'
 import { 
   Bold, Italic, Underline as UnderlineIcon, 
@@ -470,20 +471,336 @@ const ImageGalleryExtension = Node.create({
   },
 })
 
+// Helper function to detect if text is RTL (Arabic, Hebrew, Persian, etc.)
+const isRTL = (text: string): boolean => {
+  const rtlRegex = /[\u0591-\u07FF\u200F\u202B\u202E\uFB1D-\uFDFD\uFE70-\uFEFC]/
+  return rtlRegex.test(text)
+}
+
+// HighlightCard component for non-editable quote block with inline note
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const HighlightCard = ({ node, deleteNode, updateAttributes }: any) => {
+  const text = node.attrs.text || ''
+  const userNote = node.attrs.userNote || ''
+  const isTextRTL = isRTL(text)
+  const [localNote, setLocalNote] = useState(userNote)
+  const [isFocused, setIsFocused] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const latestNoteRef = useRef(localNote)
+  const updateAttributesRef = useRef(updateAttributes)
+  
+  // Keep refs updated
+  useEffect(() => {
+    latestNoteRef.current = localNote
+  }, [localNote])
+
+  useEffect(() => {
+    updateAttributesRef.current = updateAttributes
+  }, [updateAttributes])
+  
+  // Focus input when component mounts if no note exists
+  useEffect(() => {
+    if (!userNote && inputRef.current) {
+      setTimeout(() => {
+        inputRef.current?.focus()
+        setIsFocused(true)
+      }, 100)
+    }
+  }, [userNote])
+
+  // Auto-resize textarea on mount and when content changes
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto'
+      inputRef.current.style.height = inputRef.current.scrollHeight + 'px'
+    }
+  }, [localNote])
+
+  // Cleanup timeout and flush pending save on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        // Flush pending save
+        updateAttributesRef.current({ userNote: latestNoteRef.current })
+      }
+    }
+  }, [])
+  
+  const handleClick = () => {
+    // Dispatch custom event for navigation
+    window.dispatchEvent(new CustomEvent('quote-label-click', { detail: { text } }))
+  }
+  
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const confirmDelete = window.confirm(`Delete this highlight?\n\n"${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`)
+    if (confirmDelete) {
+      // Dispatch custom event for deletion
+      window.dispatchEvent(new CustomEvent('quote-label-delete', { detail: { text } }))
+      deleteNode()
+    }
+  }
+  
+  const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newNote = e.target.value
+    setLocalNote(newNote)
+    
+    // Debounce updateAttributes
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+    
+    saveTimeoutRef.current = setTimeout(() => {
+      updateAttributesRef.current({ userNote: newNote })
+      saveTimeoutRef.current = null
+    }, 500)
+    
+    // Auto-resize textarea
+    e.target.style.height = 'auto'
+    e.target.style.height = e.target.scrollHeight + 'px'
+  }
+  
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Delete the whole highlight when backspace/delete is pressed on empty note
+    if ((e.key === 'Backspace' || e.key === 'Delete') && localNote === '') {
+      e.preventDefault()
+      deleteNode()
+    }
+  }
+  
+  return (
+    <NodeViewWrapper as="div" className="my-6 w-full">
+      <div 
+        className={cn(
+          "group relative w-full rounded-xl overflow-hidden transition-all duration-200",
+          "bg-[#121212] border border-white/10",
+          isFocused ? "ring-1 ring-amber-500/50 border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.1)]" : "hover:border-white/20"
+        )}
+        data-quote-text={text}
+      >
+        {/* Accent Bar */}
+        <div className={cn(
+          "absolute top-0 bottom-0 w-1 bg-amber-500",
+          isTextRTL ? "right-0" : "left-0"
+        )} />
+        
+        <div className={cn(
+          "flex flex-col p-4",
+          isTextRTL ? "pr-5 pl-4" : "pl-5 pr-4"
+        )}>
+          {/* Header: Highlight Text + Actions */}
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <div 
+              className={cn(
+                "text-[15px] text-[#e0e0e0] leading-relaxed font-medium opacity-90",
+                isTextRTL && "text-right"
+              )}
+              dir={isTextRTL ? "rtl" : "ltr"}
+            >
+              "{text}"
+            </div>
+            
+            {/* Actions - Visible on hover */}
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0">
+              <button
+                onClick={handleClick}
+                className="p-1.5 text-gray-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-md transition-colors"
+                title="Go to text in document"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={handleDelete}
+                className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
+                title="Delete highlight"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Divider */}
+          <div className="h-px w-full bg-white/5 mb-3" />
+          
+          {/* Note Input */}
+          <textarea
+            ref={inputRef}
+            value={localNote}
+            onChange={handleNoteChange}
+            onKeyDown={handleKeyDown}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder="Add your thoughts..."
+            className={cn(
+              "w-full bg-transparent text-[14px] text-gray-300 leading-relaxed",
+              "placeholder:text-gray-600 placeholder:italic",
+              "resize-none focus:outline-none",
+              "min-h-[80px]"
+            )}
+            dir={isRTL(localNote) ? "rtl" : "ltr"}
+            spellCheck={false}
+          />
+        </div>
+      </div>
+    </NodeViewWrapper>
+  )
+}
+
+// QuoteLabel extension - non-editable block node for document highlights
+const QuoteLabelExtension = Node.create({
+  name: 'quoteLabel',
+  group: 'block',
+  atom: false, // Allow updates to attributes
+  
+  addAttributes() {
+    return {
+      text: {
+        default: '',
+      },
+      userNote: {
+        default: '',
+      },
+    }
+  },
+  
+  parseHTML() {
+    return [
+      {
+        tag: 'div[data-quote-label]',
+        getAttrs: (element) => {
+          const el = element as HTMLElement
+          return { 
+            text: el.getAttribute('data-quote-text') || el.textContent?.replace(/^"|"$/g, '') || '',
+            userNote: el.getAttribute('data-user-note') || ''
+          }
+        },
+      },
+      // Also support old span format for backwards compatibility
+      {
+        tag: 'span[data-quote-label]',
+        getAttrs: (element) => {
+          const el = element as HTMLElement
+          return { 
+            text: el.getAttribute('data-quote-text') || el.textContent?.replace(/^"|"$/g, '') || '',
+            userNote: ''
+          }
+        },
+      },
+    ]
+  },
+  
+  renderHTML({ HTMLAttributes }) {
+    const text = HTMLAttributes.text || ''
+    const userNote = HTMLAttributes.userNote || ''
+    return ['div', mergeAttributes(HTMLAttributes, { 
+      'data-quote-label': 'true',
+      'data-quote-text': text,
+      'data-user-note': userNote,
+      class: 'quote-label-node',
+    }), `"${text}"`]
+  },
+  
+  addNodeView() {
+    return ReactNodeViewRenderer(HighlightCard)
+  },
+})
+
 interface RichTextEditorProps {
   content: string
   onChange: (content: string) => void
   editable?: boolean
+  onHighlightDeleted?: (highlightText: string) => void
+  onNavigateToHighlight?: (text: string) => void
+  highlightNotes?: Map<string, string> // Map of highlight text -> user note
 }
 
-export function RichTextEditor({ content, onChange, editable = true }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, editable = true, onHighlightDeleted, onNavigateToHighlight, highlightNotes }: RichTextEditorProps) {
   const [isUploading, setIsUploading] = useState(false)
+  const [hoveredHighlight, setHoveredHighlight] = useState<{ text: string; note: string; x: number; y: number } | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const editorRef = useRef<HTMLDivElement>(null)
+  const onHighlightDeletedRef = useRef(onHighlightDeleted)
+  const onNavigateToHighlightRef = useRef(onNavigateToHighlight)
+  
+  // Keep refs updated
+  useEffect(() => {
+    onHighlightDeletedRef.current = onHighlightDeleted
+    onNavigateToHighlightRef.current = onNavigateToHighlight
+  }, [onHighlightDeleted, onNavigateToHighlight])
+
+  // Store highlightNotes in a ref for event handlers
+  const highlightNotesRef = useRef(highlightNotes)
+  useEffect(() => {
+    highlightNotesRef.current = highlightNotes
+  }, [highlightNotes])
+
+  // Listen for custom events from QuoteLabel components
+  useEffect(() => {
+    const handleQuoteClick = (e: CustomEvent<{ text: string }>) => {
+      if (onNavigateToHighlightRef.current) {
+        onNavigateToHighlightRef.current(e.detail.text)
+      }
+    }
+    
+    const handleQuoteDelete = (e: CustomEvent<{ text: string }>) => {
+      if (onHighlightDeletedRef.current) {
+        onHighlightDeletedRef.current(e.detail.text)
+      }
+    }
+    
+    window.addEventListener('quote-label-click', handleQuoteClick as EventListener)
+    window.addEventListener('quote-label-delete', handleQuoteDelete as EventListener)
+    
+    return () => {
+      window.removeEventListener('quote-label-click', handleQuoteClick as EventListener)
+      window.removeEventListener('quote-label-delete', handleQuoteDelete as EventListener)
+    }
+  }, [])
+
+  // Handle hover on highlights to show tooltip
+  useEffect(() => {
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target.classList.contains('quote-highlight') || target.closest('.quote-highlight')) {
+        const highlightEl = target.classList.contains('quote-highlight') ? target : target.closest('.quote-highlight') as HTMLElement
+        if (highlightEl && highlightNotesRef.current) {
+          const highlightText = highlightEl.textContent || ''
+          const note = highlightNotesRef.current.get(highlightText)
+          if (note) {
+            const rect = highlightEl.getBoundingClientRect()
+            setHoveredHighlight({
+              text: highlightText,
+              note,
+              x: rect.left + rect.width / 2,
+              y: rect.bottom + 8
+            })
+          }
+        }
+      }
+    }
+
+    const handleMouseOut = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target.classList.contains('quote-highlight') || target.closest('.quote-highlight')) {
+        setHoveredHighlight(null)
+      }
+    }
+
+    document.addEventListener('mouseover', handleMouseOver)
+    document.addEventListener('mouseout', handleMouseOut)
+
+    return () => {
+      document.removeEventListener('mouseover', handleMouseOver)
+      document.removeEventListener('mouseout', handleMouseOut)
+    }
+  }, [])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -496,8 +813,15 @@ export function RichTextEditor({ content, onChange, editable = true }: RichTextE
       AudioExtension,
       FileAttachmentExtension,
       ImageGalleryExtension,
+      QuoteLabelExtension,
       TaskItem.configure({
         nested: true,
+      }),
+      Highlight.configure({
+        multicolor: false,
+        HTMLAttributes: {
+          class: 'quote-highlight',
+        },
       }),
       Image.extend({
         addNodeView() {
@@ -519,20 +843,148 @@ export function RichTextEditor({ content, onChange, editable = true }: RichTextE
     ],
     content,
     editable,
+    autofocus: false,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
     },
     editorProps: {
       attributes: {
         class: 'prose prose-invert max-w-none focus:outline-none min-h-[200px] px-4 py-2 prose-p:leading-relaxed prose-li:my-0 prose-li:leading-tight prose-ul:my-2 prose-ol:my-2 prose-headings:my-4 prose-headings:font-semibold [&_li>p]:my-0 prose-blockquote:border-l-blue-500 prose-blockquote:bg-blue-500/5 prose-blockquote:py-1',
+        tabindex: '0',
+      },
+      handleDOMEvents: {
+        focus: () => {
+          return false
+        },
+        keydown: (view, event) => {
+          const { state } = view
+          const { selection } = state
+          const { $from, $to } = selection
+          
+          // Check if cursor is inside a highlight mark
+          const marks = $from.marks()
+          const highlightMark = marks.find(m => m.type.name === 'highlight')
+          
+          // If inside a highlight, only allow backspace/delete (with confirmation)
+          // Block all other input
+          if (highlightMark) {
+            // Allow navigation keys
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Escape', 'Tab'].includes(event.key)) {
+              return false
+            }
+            
+            // Handle delete
+            if (event.key === 'Backspace' || event.key === 'Delete') {
+              event.preventDefault()
+              
+              // Find the extent of the highlight
+              let start = $from.pos
+              let end = $from.pos
+              
+              while (start > 0) {
+                const $pos = state.doc.resolve(start - 1)
+                if (!$pos.marks().some(m => m.type.name === 'highlight')) break
+                start--
+              }
+              
+              while (end < state.doc.content.size) {
+                const $pos = state.doc.resolve(end)
+                if (!$pos.marks().some(m => m.type.name === 'highlight')) break
+                end++
+              }
+              
+              const highlightText = state.doc.textBetween(start, end)
+              
+              const confirmDelete = window.confirm(`Delete this highlight?\n\n"${highlightText.substring(0, 100)}${highlightText.length > 100 ? '...' : ''}"`)
+              
+              if (confirmDelete) {
+                // Find the parent paragraph and delete the entire paragraph
+                const $start = state.doc.resolve(start)
+                const parentStart = $start.before($start.depth)
+                const parentEnd = $start.after($start.depth)
+                
+                // Delete the paragraph containing the highlight
+                const tr = state.tr.delete(parentStart, parentEnd)
+                view.dispatch(tr)
+                
+                // Notify parent about deleted highlight
+                if (onHighlightDeletedRef.current && highlightText) {
+                  onHighlightDeletedRef.current(highlightText)
+                }
+              }
+              
+              return true
+            }
+            
+            // Block all other input when inside highlight
+            event.preventDefault()
+            return true
+          }
+          
+          // Check if we're about to type/delete into a highlight
+          if (event.key === 'Backspace' && $from.pos > 0) {
+            const posBefore = $from.pos - 1
+            const $posBefore = state.doc.resolve(posBefore)
+            const marksBefore = $posBefore.marks()
+            if (marksBefore.some(m => m.type.name === 'highlight')) {
+              event.preventDefault()
+              
+              // Find the extent of the highlight
+              let start = posBefore
+              let end = posBefore
+              
+              while (start > 0) {
+                const $pos = state.doc.resolve(start - 1)
+                if (!$pos.marks().some(m => m.type.name === 'highlight')) break
+                start--
+              }
+              
+              while (end < state.doc.content.size) {
+                const $pos = state.doc.resolve(end)
+                if (!$pos.marks().some(m => m.type.name === 'highlight')) break
+                end++
+              }
+              
+              const highlightText = state.doc.textBetween(start, end)
+              
+              const confirmDelete = window.confirm(`Delete this highlight?\n\n"${highlightText.substring(0, 100)}${highlightText.length > 100 ? '...' : ''}"`)
+              
+              if (confirmDelete) {
+                const $start = state.doc.resolve(start)
+                const parentStart = $start.before($start.depth)
+                const parentEnd = $start.after($start.depth)
+                const tr = state.tr.delete(parentStart, parentEnd)
+                view.dispatch(tr)
+                
+                if (onHighlightDeletedRef.current && highlightText) {
+                  onHighlightDeletedRef.current(highlightText)
+                }
+              }
+              
+              return true
+            }
+          }
+          
+          return false
+        },
       },
     },
   })
 
   // Sync editor content when the content prop changes (important for switching between documents)
+  // Only sync when document changes, not during typing
+  const lastSyncedContent = useRef(content)
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content || '')
+    if (editor && content !== lastSyncedContent.current) {
+      // Only update if the content is significantly different (not just whitespace)
+      const currentHTML = editor.getHTML()
+      if (content !== currentHTML) {
+        // Use queueMicrotask to avoid flushSync error during React render
+        queueMicrotask(() => {
+          editor.commands.setContent(content || '')
+          lastSyncedContent.current = content
+        })
+      }
     }
   }, [editor, content])
 
@@ -894,9 +1346,17 @@ export function RichTextEditor({ content, onChange, editable = true }: RichTextE
           />
         </div>
       )}
-      <div className="flex-1 overflow-y-auto relative">
+      <div 
+        className="flex-1 overflow-y-auto relative cursor-text"
+        onClick={(e) => {
+          // Only focus if clicking directly on the container, not on editor content
+          if (editor && editable && e.target === e.currentTarget) {
+            editor.commands.focus('end')
+          }
+        }}
+      >
         {editable && !content && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
             <div className="text-center text-gray-600">
               <FileText className="h-12 w-12 mx-auto mb-2 opacity-30" />
               <p className="text-sm">Start writing or drag & drop files here</p>
@@ -905,7 +1365,7 @@ export function RichTextEditor({ content, onChange, editable = true }: RichTextE
         )}
         <EditorContent 
           editor={editor} 
-          className="h-full" 
+          className="h-full min-h-[300px] [&_.ProseMirror]:min-h-[300px] [&_.ProseMirror]:h-full [&_.ProseMirror]:cursor-text [&_.ProseMirror]:outline-none [&_.ProseMirror]:p-4" 
         />
       </div>
 
@@ -927,6 +1387,23 @@ export function RichTextEditor({ content, onChange, editable = true }: RichTextE
             <Mic className="h-7 w-7 text-white" />
           )}
         </button>
+      )}
+
+      {/* Highlight Note Tooltip */}
+      {hoveredHighlight && (
+        <div
+          className="fixed z-50 max-w-xs px-3 py-2 bg-[#2d332b] border border-amber-500/30 rounded-lg shadow-lg pointer-events-none"
+          style={{
+            left: hoveredHighlight.x,
+            top: hoveredHighlight.y,
+            transform: 'translateX(-50%)'
+          }}
+        >
+          <div className="flex items-start gap-2">
+            <div className="w-1 h-full bg-amber-500 rounded-full shrink-0" />
+            <p className="text-sm text-gray-300">{hoveredHighlight.note}</p>
+          </div>
+        </div>
       )}
     </div>
   )

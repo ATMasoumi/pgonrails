@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from 'react'
-import { X, Save, Loader2, FileText } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { X, Loader2, FileText, Check, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RichTextEditor } from '@/components/RichTextEditor'
-import { updateNote } from '@/app/documents/actions'
+import { updateNote, removeDocumentHighlight } from '@/app/documents/actions'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -14,51 +14,135 @@ interface NoteSidePanelProps {
   documentId: string
   initialNote?: string | null
   title: string
+  pendingNoteText?: string | null
+  onNoteTextAdded?: () => void
+  onNavigateToText?: (text: string) => void
+  onHighlightDeleted?: (text: string) => void
+  onNoteChange?: (noteContent: string) => void
 }
 
-export function NoteSidePanel({ isOpen, onClose, documentId, initialNote, title }: NoteSidePanelProps) {
+export function NoteSidePanel({ isOpen, onClose, documentId, initialNote, title, pendingNoteText, onNoteTextAdded, onNavigateToText, onHighlightDeleted, onNoteChange }: NoteSidePanelProps) {
   const [note, setNote] = useState(initialNote || '')
   const [isSaving, setIsSaving] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'idle'>('idle')
   const [currentDocId, setCurrentDocId] = useState(documentId)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastSavedNoteRef = useRef(initialNote || '')
+  const pendingNoteTextProcessedRef = useRef<string | null>(null)
 
-  // Reset note when document changes - this is critical for switching between nodes
-  useEffect(() => {
-    if (documentId !== currentDocId || isOpen) {
-      setNote(initialNote || '')
-      setHasChanges(false)
-      setCurrentDocId(documentId)
-    }
-  }, [documentId, initialNote, isOpen, currentDocId])
-
-  const handleNoteChange = (newNote: string) => {
-    setNote(newNote)
-    setHasChanges(newNote !== (initialNote || ''))
-  }
-
-  const handleSave = async () => {
+  // Auto-save function
+  const saveNote = useCallback(async (noteContent: string) => {
+    if (noteContent === lastSavedNoteRef.current) return
+    
     setIsSaving(true)
+    setSaveStatus('saving')
+    
     try {
-      await updateNote(documentId, note)
-      toast.success('Note saved successfully')
-      setHasChanges(false)
-      onClose()
+      await updateNote(documentId, noteContent)
+      lastSavedNoteRef.current = noteContent
+      setSaveStatus('saved')
+      // Reset to idle after showing saved status
+      setTimeout(() => setSaveStatus('idle'), 2000)
     } catch (error) {
-      console.error('Save error:', error)
-      toast.error('Failed to save note')
+      console.error('Auto-save error:', error)
+      setSaveStatus('error')
+      toast.error('Failed to save note. Will retry...')
+      // Retry after 5 seconds
+      setTimeout(() => {
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+        saveNote(noteContent)
+      }, 5000)
     } finally {
       setIsSaving(false)
     }
+  }, [documentId])
+
+  // Reset note when document changes - this is critical for switching between nodes
+  useEffect(() => {
+    if (documentId !== currentDocId) {
+      setNote(initialNote || '')
+      lastSavedNoteRef.current = initialNote || ''
+      setSaveStatus('idle')
+      setCurrentDocId(documentId)
+      pendingNoteTextProcessedRef.current = null
+    }
+  }, [documentId, initialNote, currentDocId])
+
+  // Set initial note when panel first opens
+  useEffect(() => {
+    if (isOpen && !note && initialNote) {
+      setNote(initialNote)
+      lastSavedNoteRef.current = initialNote
+    }
+  }, [isOpen, initialNote])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Handle pending note text from selection - add as block quote label
+  useEffect(() => {
+    if (pendingNoteText && pendingNoteText !== pendingNoteTextProcessedRef.current) {
+      pendingNoteTextProcessedRef.current = pendingNoteText
+      
+      // Create the quote label HTML to insert into the note (as a block div)
+      const quoteLabelHtml = `<div data-quote-label="true" data-quote-text="${pendingNoteText.replace(/"/g, '&quot;')}" class="quote-label-node">"${pendingNoteText}"</div>`
+      
+      // Append to note content
+      const currentContent = note || ''
+      const newContent = currentContent 
+        ? `${currentContent}${quoteLabelHtml}`
+        : quoteLabelHtml
+      
+      setNote(newContent)
+      onNoteChange?.(newContent)
+      
+      // Trigger auto-save
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        saveNote(newContent)
+      }, 1500)
+      
+      onNoteTextAdded?.()
+    }
+  }, [pendingNoteText, note, onNoteTextAdded, saveNote, onNoteChange])
+
+  const handleNoteChange = (newNote: string) => {
+    setNote(newNote)
+    onNoteChange?.(newNote)
+    
+    // Debounced auto-save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+    
+    // Only auto-save if content actually changed from last saved version
+    if (newNote !== lastSavedNoteRef.current) {
+      saveTimeoutRef.current = setTimeout(() => {
+        saveNote(newNote)
+      }, 1500) // 1.5 second debounce
+    }
   }
 
-  const handleClose = () => {
-    if (hasChanges) {
-      if (confirm('You have unsaved changes. Are you sure you want to close?')) {
-        onClose()
-      }
-    } else {
-      onClose()
+  const handleClose = async () => {
+    // Save any pending changes before closing
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
     }
+    
+    // If there are unsaved changes, save them first
+    if (note !== lastSavedNoteRef.current) {
+      await saveNote(note)
+    }
+    
+    onClose()
   }
 
   return (
@@ -87,8 +171,26 @@ export function NoteSidePanel({ isOpen, onClose, documentId, initialNote, title 
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-semibold text-white truncate">{title}</h2>
-              <p className="text-xs text-gray-400">
-                {hasChanges ? 'Unsaved changes' : 'All changes saved'}
+              <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                {saveStatus === 'saving' && (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Saving...
+                  </>
+                )}
+                {saveStatus === 'saved' && (
+                  <>
+                    <Check className="h-3 w-3 text-green-400" />
+                    Saved
+                  </>
+                )}
+                {saveStatus === 'error' && (
+                  <>
+                    <AlertCircle className="h-3 w-3 text-red-400" />
+                    Save failed, retrying...
+                  </>
+                )}
+                {saveStatus === 'idle' && 'Auto-saves as you type'}
               </p>
             </div>
           </div>
@@ -103,53 +205,45 @@ export function NoteSidePanel({ isOpen, onClose, documentId, initialNote, title 
         </div>
 
         {/* Editor Area */}
-        <div className="flex-1 overflow-hidden flex flex-col">
-          <RichTextEditor 
-            key={documentId}
-            content={note} 
-            onChange={handleNoteChange} 
-          />
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* Rich Text Editor */}
+          <div className="flex-1 min-h-0 overflow-auto">
+            <RichTextEditor 
+              key={documentId}
+              content={note} 
+              onChange={handleNoteChange}
+              onHighlightDeleted={async (text) => {
+                // Remove from database
+                try {
+                  await removeDocumentHighlight(documentId, text)
+                } catch (err) {
+                  console.error('Failed to remove highlight from database:', err)
+                }
+                // Notify parent to update document view
+                onHighlightDeleted?.(text)
+              }}
+              onNavigateToHighlight={onNavigateToText}
+            />
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-white/10 flex justify-between items-center bg-[#050505]">
-          <p className="text-sm text-gray-500">
-            {hasChanges && (
-              <span className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
-                You have unsaved changes
-              </span>
+        <div className="p-4 border-t border-white/10 flex justify-end items-center bg-[#050505]">
+          <Button 
+            onClick={handleClose} 
+            variant="ghost"
+            className="text-gray-400 hover:text-white hover:bg-white/10"
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Close'
             )}
-          </p>
-          <div className="flex gap-2">
-            <Button 
-              onClick={handleClose} 
-              variant="ghost"
-              className="text-gray-400 hover:text-white hover:bg-white/10"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSave} 
-              disabled={isSaving || !hasChanges} 
-              className={cn(
-                "bg-blue-600 hover:bg-blue-700 text-white transition-all",
-                hasChanges && "ring-2 ring-blue-500/50"
-              )}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Note
-                </>
-              )}
-            </Button>
-          </div>
+          </Button>
         </div>
       </div>
     </>

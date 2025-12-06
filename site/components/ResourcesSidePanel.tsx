@@ -122,9 +122,25 @@ export function ResourcesSidePanel({ isOpen, onClose, title, resources }: Resour
                   <TabsContent value="books" className="space-y-4 mt-0 pb-6 outline-none">
                     {resources.books.map((book, i) => (
                       <div key={i} className="p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-colors group">
-                        <h3 className="font-semibold text-base text-gray-200 group-hover:text-purple-400 transition-colors">{book.title}</h3>
-                        <p className="text-sm font-medium text-gray-400 mb-2">by {book.author}</p>
-                        <p className="text-sm text-gray-500">{book.description}</p>
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-base text-gray-200 group-hover:text-purple-400 transition-colors">{book.title}</h3>
+                            <p className="text-sm font-medium text-gray-400 mb-2">by {book.author}</p>
+                            <p className="text-sm text-gray-500">{book.description}</p>
+                          </div>
+                          <div className="flex flex-col gap-2 shrink-0">
+                            <Button variant="outline" size="sm" className="bg-white/5 border-white/10 hover:bg-purple-500/20 hover:text-purple-400 hover:border-purple-500/50" asChild>
+                              <a href={`https://www.amazon.com/s?k=${encodeURIComponent(book.title + ' ' + book.author)}`} target="_blank" rel="noopener noreferrer">
+                                Amazon <ExternalLink className="ml-2 h-3 w-3" />
+                              </a>
+                            </Button>
+                            <Button variant="outline" size="sm" className="bg-white/5 border-white/10 hover:bg-amber-500/20 hover:text-amber-400 hover:border-amber-500/50" asChild>
+                              <a href={`https://www.goodreads.com/search?q=${encodeURIComponent(book.title + ' ' + book.author)}`} target="_blank" rel="noopener noreferrer">
+                                Goodreads <ExternalLink className="ml-2 h-3 w-3" />
+                              </a>
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     ))}
                     {resources.books.length === 0 && (
@@ -133,17 +149,40 @@ export function ResourcesSidePanel({ isOpen, onClose, title, resources }: Resour
                   </TabsContent>
 
                   <TabsContent value="influencers" className="space-y-4 mt-0 pb-6 outline-none">
-                    {resources.influencers.map((influencer, i) => (
-                      <div key={i} className="p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-colors group">
-                        <div className="flex justify-between items-start gap-4">
-                          <div>
-                            <h3 className="font-semibold text-base text-gray-200 group-hover:text-orange-400 transition-colors">{influencer.name}</h3>
-                            <p className="text-sm font-medium text-gray-400">{influencer.platform} • {influencer.handle}</p>
-                            <p className="text-sm text-gray-500 mt-2">{influencer.description}</p>
+                    {resources.influencers.map((influencer, i) => {
+                      // Generate the appropriate profile URL based on platform
+                      const getProfileUrl = () => {
+                        const platform = influencer.platform.toLowerCase();
+                        const handle = influencer.handle.replace('@', '');
+                        if (platform.includes('twitter') || platform.includes('x')) {
+                          return `https://twitter.com/${handle}`;
+                        } else if (platform.includes('linkedin')) {
+                          return `https://linkedin.com/in/${handle}`;
+                        } else if (platform.includes('youtube')) {
+                          return `https://youtube.com/@${handle}`;
+                        } else if (platform.includes('github')) {
+                          return `https://github.com/${handle}`;
+                        }
+                        return `https://www.google.com/search?q=${encodeURIComponent(influencer.name + ' ' + influencer.platform)}`;
+                      };
+                      
+                      return (
+                        <div key={i} className="p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-colors group">
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-base text-gray-200 group-hover:text-orange-400 transition-colors">{influencer.name}</h3>
+                              <p className="text-sm font-medium text-gray-400">{influencer.platform} • @{influencer.handle.replace('@', '')}</p>
+                              <p className="text-sm text-gray-500 mt-2">{influencer.description}</p>
+                            </div>
+                            <Button variant="outline" size="sm" className="bg-white/5 border-white/10 hover:bg-orange-500/20 hover:text-orange-400 hover:border-orange-500/50 shrink-0" asChild>
+                              <a href={getProfileUrl()} target="_blank" rel="noopener noreferrer">
+                                Follow <ExternalLink className="ml-2 h-3 w-3" />
+                              </a>
+                            </Button>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {resources.influencers.length === 0 && (
                       <div className="text-center text-gray-500 py-8">No influencers found</div>
                     )}

@@ -158,12 +158,20 @@ export function StreamingText({ content, isStreaming, className }: StreamingText
   const markdownComponents: any = useMemo(() => ({
     // Code blocks - let CodeBlock handle detection
     pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-    code({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
+    code({ inline, className, children, node, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode; node?: { position?: { start?: { line?: number } } } }) {
       const match = /language-(\w+)/.exec(className || '')
       const codeContent = String(children).replace(/\n$/, '')
       
+      // Determine if this is truly block code:
+      // - Has a language class (from code fence)
+      // - Contains newlines (multi-line)
+      // - Explicitly marked as not inline
+      const hasLanguage = Boolean(match?.[1])
+      const isMultiLine = codeContent.includes('\n')
+      const isBlockCode = hasLanguage || isMultiLine || (inline === false)
+      
       // Block code (multi-line or explicit code fence)
-      if (!inline) {
+      if (isBlockCode) {
         return (
           <CodeBlock
             language={match?.[1] || ''}
@@ -337,32 +345,40 @@ export function StreamingText({ content, isStreaming, className }: StreamingText
   }), [])
 
   // ============================================
-  // AUTO-SCROLL LOGIC (SCROLL-ONLY SENSITIVITY)
+  // AUTO-SCROLL LOGIC (SIMPLE & RELIABLE)
   // ============================================
-  // Only stops when user actually scrolls, not mouse movement
+  // Any user scroll input immediately stops auto-scroll
+  // Scrolling to bottom re-enables it after a brief pause
+  // Uses instant scroll to avoid animation conflicts
   // ============================================
 
   const isFollowingRef = useRef(isFollowing)
   isFollowingRef.current = isFollowing
+  
+  // Track when auto-scroll was stopped to debounce re-enable
+  const autoScrollStoppedAtRef = useRef(0)
 
-  // Only stop on actual scroll events
+  // Handle user scroll detection - ANY user input stops auto-scroll
   useLayoutEffect(() => {
     if (!isStreaming) return
 
     const stopAutoScroll = () => {
+      // Only update timestamp and stop if currently following
       if (isFollowingRef.current) {
+        autoScrollStoppedAtRef.current = Date.now()
         setIsFollowing(false)
         setShowFollowButton(true)
       }
     }
 
-    // Only listen to events that indicate actual scrolling intent
+    // ANY wheel event stops auto-scroll immediately - no exceptions
     document.addEventListener('wheel', stopAutoScroll, { capture: true, passive: true })
+    document.addEventListener('touchstart', stopAutoScroll, { capture: true, passive: true })
     document.addEventListener('touchmove', stopAutoScroll, { capture: true, passive: true })
-
-    // Keyboard scroll keys
+    
+    // Scroll keys stop auto-scroll
     const handleKey = (e: KeyboardEvent) => {
-      const scrollKeys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', ' ', 'Home', 'End']
+      const scrollKeys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']
       if (scrollKeys.includes(e.key)) {
         stopAutoScroll()
       }
@@ -371,36 +387,56 @@ export function StreamingText({ content, isStreaming, className }: StreamingText
     
     return () => {
       document.removeEventListener('wheel', stopAutoScroll, { capture: true } as EventListenerOptions)
+      document.removeEventListener('touchstart', stopAutoScroll, { capture: true } as EventListenerOptions)
       document.removeEventListener('touchmove', stopAutoScroll, { capture: true } as EventListenerOptions)
       document.removeEventListener('keydown', handleKey, { capture: true })
     }
   }, [isStreaming])
 
-  // Detect when user scrolls to bottom to re-enable auto-scroll
+  // Re-enable auto-scroll when user scrolls to bottom
+  // Polls periodically to check if user is at bottom
   useEffect(() => {
-    if (!isStreaming || isFollowing) return
+    if (!isStreaming) return
 
     const checkIfAtBottom = () => {
-      const scrollTop = window.scrollY
-      const scrollHeight = document.documentElement.scrollHeight
-      const clientHeight = window.innerHeight
-      const distanceToBottom = scrollHeight - scrollTop - clientHeight
+      // Don't re-enable if already following
+      if (isFollowingRef.current) return
       
-      if (distanceToBottom < 50) {
+      // Wait at least 500ms after auto-scroll was stopped to re-enable
+      const timeSinceStopped = Date.now() - autoScrollStoppedAtRef.current
+      if (timeSinceStopped < 500) return
+      
+      // Check if at bottom of page
+      const scrollTop = window.scrollY || window.pageYOffset
+      const windowHeight = window.innerHeight
+      const documentHeight = Math.max(
+        document.body.scrollHeight,
+        document.documentElement.scrollHeight
+      )
+      const distanceToBottom = documentHeight - scrollTop - windowHeight
+      
+      // Re-enable when close to bottom (use larger threshold)
+      if (distanceToBottom < 200) {
         setIsFollowing(true)
         setShowFollowButton(false)
       }
     }
 
-    window.addEventListener('scroll', checkIfAtBottom, { passive: true })
-    return () => window.removeEventListener('scroll', checkIfAtBottom)
-  }, [isStreaming, isFollowing])
+    // Poll every 250ms to check position
+    const pollInterval = setInterval(checkIfAtBottom, 250)
+    
+    return () => {
+      clearInterval(pollInterval)
+    }
+  }, [isStreaming])
 
   // Perform auto-scroll when visible lines change
+  // Using 'instant' behavior to avoid fighting with user scroll
   useEffect(() => {
     if (!isStreaming || !isFollowing) return
 
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+    // Use instant scroll - no animation means no fighting with user input
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' })
   }, [visibleLineCount, isStreaming, isFollowing])
 
   // When streaming starts, enable auto-scroll
@@ -452,27 +488,28 @@ export function StreamingText({ content, isStreaming, className }: StreamingText
       
       {/* Loading indicator while buffering/releasing lines */}
       {(isStreaming || hasBufferedLines) && (
-        <div className="flex items-center gap-2 mt-4 text-[#757575]">
+        <div className="flex items-center gap-3 mt-6 py-3">
           <motion.div
-            className="flex gap-1"
+            className="flex gap-1.5"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            <motion.span
-              className="w-2 h-2 bg-white/40 rounded-full"
-              animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 1, repeat: Infinity, delay: 0 }}
-            />
-            <motion.span
-              className="w-2 h-2 bg-white/40 rounded-full"
-              animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
-            />
-            <motion.span
-              className="w-2 h-2 bg-white/40 rounded-full"
-              animate={{ scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
-            />
+            {[0, 1, 2].map((i) => (
+              <motion.span
+                key={i}
+                className="w-2 h-2 rounded-full bg-gradient-to-t from-blue-500 to-indigo-400"
+                animate={{ 
+                  y: [0, -6, 0],
+                  scale: [1, 1.1, 1],
+                }}
+                transition={{ 
+                  duration: 0.8, 
+                  repeat: Infinity, 
+                  delay: i * 0.15,
+                  ease: "easeInOut"
+                }}
+              />
+            ))}
           </motion.div>
         </div>
       )}

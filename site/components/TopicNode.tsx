@@ -11,6 +11,7 @@ import { QuizQuestion } from '@/components/QuizSidePanel'
 import { usePodcast } from '@/lib/contexts/PodcastContext'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 
 interface TopicNodeData extends Record<string, unknown> {
   id: string
@@ -18,6 +19,7 @@ interface TopicNodeData extends Record<string, unknown> {
   label: string
   content: string | null
   createdAt: string
+  isNew?: boolean
   hasChildren: boolean
   isCollapsed: boolean
   readOnly?: boolean
@@ -46,9 +48,35 @@ interface TopicNodeData extends Record<string, unknown> {
 
 type TopicNode = Node<TopicNodeData>
 
+// Track which nodes have been animated to prevent re-animation on re-renders
+const animatedNodes = new Set<string>()
+
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, isGeneratingSubtopics, isGeneratingExplanation, isGeneratingPodcast, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary, onGeneratePodcast } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, isGeneratingSubtopics, isGeneratingExplanation, isGeneratingPodcast, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary, onGeneratePodcast, isNew } = data
   const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Check if this is a new node that hasn't been animated yet
+  const shouldAnimate = isNew && !animatedNodes.has(id)
+  
+  // Debug logging
+  useEffect(() => {
+    if (isNew) {
+      console.log(`TopicNode ${id}: isNew=${isNew}, shouldAnimate=${shouldAnimate}, alreadyAnimated=${animatedNodes.has(id)}`)
+    }
+  }, [id, isNew, shouldAnimate])
+  
+  // Mark as animated after first render
+  useEffect(() => {
+    if (shouldAnimate) {
+      console.log(`TopicNode ${id}: Starting animation`)
+      // Small delay to ensure animation plays
+      const timer = setTimeout(() => {
+        animatedNodes.add(id)
+        console.log(`TopicNode ${id}: Animation complete, marked as animated`)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [id, shouldAnimate])
 
   // Resources state
   const [isGeneratingResources, setIsGeneratingResources] = useState(false)
@@ -235,7 +263,18 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
   }, [isGeneratingPodcast, id, label, playPodcast])
 
   return (
-    <div className="relative group">
+    <motion.div 
+      className="relative group"
+      initial={shouldAnimate ? { opacity: 0, scale: 0.5, x: -50 } : false}
+      animate={{ opacity: 1, scale: 1, x: 0 }}
+      transition={shouldAnimate ? { 
+        type: "spring", 
+        stiffness: 200, 
+        damping: 15,
+        mass: 0.8,
+        delay: Math.random() * 0.2 // Stagger effect for multiple nodes
+      } : { duration: 0 }}
+    >
       <Handle
         type="target"
         position={Position.Left}
@@ -446,7 +485,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         isConnectable={isConnectable}
         className="!bg-transparent !w-2 !h-2 !-mr-1 border-0 z-0 opacity-0"
       />
-    </div>
+    </motion.div>
   )
 })
 

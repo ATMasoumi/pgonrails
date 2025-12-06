@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { ReactFlow, Background, Controls, useNodesState, useEdgesState, Node, Edge, BackgroundVariant } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
@@ -83,6 +83,30 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
   const router = useRouter()
   const [generatingNodes, setGeneratingNodes] = useState<Record<string, { type: 'subtopic' | 'explanation', startedAt: number }>>({})
   const [generatingPodcasts, setGeneratingPodcasts] = useState<Record<string, number>>({})
+  
+  // Track when each node was first seen (for animation)
+  const nodeFirstSeenAt = useRef<Map<string, number>>(new Map())
+  
+  // Update seen nodes when documents change
+  useEffect(() => {
+    if (!documents) return
+    
+    const now = Date.now()
+    let hasNewNodes = false
+    
+    documents.forEach(doc => {
+      if (!nodeFirstSeenAt.current.has(doc.id)) {
+        nodeFirstSeenAt.current.set(doc.id, now)
+        hasNewNodes = true
+      }
+    })
+    
+    if (hasNewNodes) {
+      console.log('TopicDiagram: New nodes detected, triggering re-render')
+      // Force a re-render to pick up new isNew values
+      router.refresh()
+    }
+  }, [documents, router])
 
   // Load generating state from localStorage on mount
   useEffect(() => {
@@ -136,6 +160,25 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
       }
     }
   }, [])
+
+  // Polling fallback: If there are pending generations, poll every 2 seconds
+  useEffect(() => {
+    const hasPendingGenerations = Object.keys(generatingNodes).length > 0 || Object.keys(generatingPodcasts).length > 0
+    
+    if (!hasPendingGenerations) return
+    
+    console.log('TopicDiagram: Starting polling for pending generations')
+    
+    const pollInterval = setInterval(() => {
+      console.log('TopicDiagram: Polling refresh...')
+      router.refresh()
+    }, 2000)
+    
+    return () => {
+      console.log('TopicDiagram: Stopping polling')
+      clearInterval(pollInterval)
+    }
+  }, [generatingNodes, generatingPodcasts, router])
 
   // Clean up generatingNodes based on actual document state
   useEffect(() => {
@@ -215,18 +258,19 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         },
         (payload) => {
           console.log('Received realtime update:', payload)
-          // Add a small delay to ensure DB propagation before refresh
+          // Refresh immediately and again after a delay to ensure data is loaded
+          router.refresh()
           setTimeout(() => {
             router.refresh()
-          }, 1000)
-          
-          // We rely on the useEffect above to clear the generating state
-          // once the new data (content or children) is available in the documents prop.
-          // This prevents the UI from flickering or showing the "Learn More" button
-          // before the "Read Doc" button is ready.
+          }, 500)
+          setTimeout(() => {
+            router.refresh()
+          }, 1500)
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status)
+      })
 
     const podcastChannel = supabase
       .channel('podcasts-changes')
@@ -580,6 +624,13 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           label: doc.query, 
           content: doc.content,
           createdAt: doc.created_at,
+          // Check if node was first seen within the last 2 seconds
+          isNew: (() => {
+            const firstSeen = nodeFirstSeenAt.current.get(doc.id)
+            const isRecent = firstSeen ? (Date.now() - firstSeen < 2000) : false
+            if (isRecent && firstSeen) console.log(`Node ${doc.id} isNew=true (firstSeen ${Date.now() - firstSeen}ms ago)`)
+            return isRecent
+          })(),
           hasChildren: hasChildren(doc.id),
           isCollapsed: collapsedIds.has(doc.id),
           hasQuiz: doc.quizzes && doc.quizzes.length > 0,
@@ -663,7 +714,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     })
 
     return getLayoutedElements(nodes, edges)
-  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenQuiz, handleOpenFlashcards, handleOpenResources, handleOpenSummary, quizPanelState.isGenerating, quizPanelState.documentId, flashcardPanelState.isGenerating, flashcardPanelState.documentId, generatingNodes])
+  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenQuiz, handleOpenFlashcards, handleOpenResources, handleOpenSummary, quizPanelState.isGenerating, quizPanelState.documentId, flashcardPanelState.isGenerating, flashcardPanelState.documentId, generatingNodes, generatingPodcasts])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
