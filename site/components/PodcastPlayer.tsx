@@ -419,6 +419,9 @@ export function PodcastPlayer() {
     }
   }
 
+  const effectiveDuration = duration > 0 ? duration : Math.max(progress, 60)
+  const progressPercent = effectiveDuration > 0 ? Math.min((progress / effectiveDuration) * 100, 100) : 0
+
   if (!currentUrl) return null
 
   return (
@@ -518,14 +521,18 @@ export function PodcastPlayer() {
               {/* Progress Bar */}
               <div className="space-y-2">
                 <div className="relative h-4 w-full flex items-center">
-                  {/* Buffered Bar */}
+                  {/* Base Track */}
                   <div 
-                    className="absolute left-0 h-1.5 rounded-full bg-white/20 transition-all duration-300 ease-out pointer-events-none"
-                    style={{ width: `${duration > 0 ? (buffered / duration) * 100 : 0}%` }}
+                    className="absolute left-0 right-0 h-1.5 rounded-full bg-white/10 pointer-events-none"
+                  />
+                  {/* Progress Fill */}
+                  <div
+                    className="absolute left-0 h-1.5 rounded-full bg-gradient-to-r from-white to-gray-300 transition-all duration-200 pointer-events-none"
+                    style={{ width: `${progressPercent}%` }}
                   />
                   <Slider
                     value={[progress]}
-                    max={duration > 0 ? duration : 100}
+                    max={effectiveDuration}
                     step={0.1}
                     onValueChange={handleSeek}
                     onValueCommit={handleSeekCommit}
