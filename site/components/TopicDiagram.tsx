@@ -15,6 +15,7 @@ import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz, generat
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { useTokenLimit } from '@/lib/hooks/use-token-limit'
 
 const nodeWidth = 280
 const nodeHeight = 100
@@ -81,6 +82,7 @@ interface TopicDiagramProps {
 
 export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagramProps) {
   const router = useRouter()
+  const { handleTokenLimitError } = useTokenLimit()
   const [generatingNodes, setGeneratingNodes] = useState<Record<string, { type: 'subtopic' | 'explanation', startedAt: number }>>({})
   const [generatingPodcasts, setGeneratingPodcasts] = useState<Record<string, number>>({})
   
@@ -375,6 +377,13 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     isGenerating: false
   })
 
+  const handleGenerationError = useCallback((error: any) => {
+    console.error(error)
+    if (!handleTokenLimitError(error)) {
+      toast.error("An error occurred. Please try again.")
+    }
+  }, [handleTokenLimitError])
+
   const handleOpenNote = useCallback((id: string) => {
     const doc = documents.find(d => d.id === id)
     if (doc) {
@@ -451,10 +460,10 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
       }
     } catch (error) {
-      console.error('Error loading quiz:', error)
+      handleGenerationError(error)
       setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
     }
-  }, [documents, router])
+  }, [documents, router, handleGenerationError])
 
   const handleGenerateNewQuiz = useCallback(async () => {
     const { documentId, content } = quizPanelState
@@ -477,10 +486,10 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
       }
     } catch (error) {
-      console.error('Error generating new quiz:', error)
+      handleGenerationError(error)
       setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
     }
-  }, [quizPanelState, router])
+  }, [quizPanelState, router, handleGenerationError])
 
   const handleOpenFlashcards = useCallback(async (id: string) => {
     const doc = documents.find(d => d.id === id)
@@ -535,10 +544,10 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
       }
     } catch (error) {
-      console.error('Error loading flashcards:', error)
+      handleGenerationError(error)
       setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
     }
-  }, [documents, router])
+  }, [documents, router, handleGenerationError])
 
   const handleGenerateNewFlashcards = useCallback(async () => {
     const { documentId, content } = flashcardPanelState
@@ -561,10 +570,10 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
       }
     } catch (error) {
-      console.error('Error generating new flashcards:', error)
+      handleGenerationError(error)
       setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
     }
-  }, [flashcardPanelState, router])
+  }, [flashcardPanelState, router, handleGenerationError])
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsedIds(prev => {
@@ -668,8 +677,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
              try {
                 await generatePodcast(id)
              } catch (e) {
-                console.error(e)
-                toast.error("Failed to generate podcast. Please try again.")
+                handleGenerationError(e)
                 setGeneratingPodcasts(prev => {
                     const next = { ...prev }
                     delete next[id]
@@ -685,7 +693,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
             try {
                await generateTopicContent(id, type)
             } catch (e) {
-              console.error(e)
+              handleGenerationError(e)
               setGeneratingNodes(prev => {
                   const next = { ...prev }
                   delete next[id]

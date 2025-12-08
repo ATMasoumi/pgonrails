@@ -8,6 +8,8 @@ import { Loader2, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
+import { toast } from "sonner"
+import { useTokenLimit } from "@/lib/hooks/use-token-limit"
 
 const SUGGESTED_TOPICS = [
   "Quantum Physics",
@@ -29,6 +31,7 @@ export function AddTopicForm({ showSuggestions = false }: AddTopicFormProps) {
   const [isPending, startTransition] = useTransition()
   const [inputValue, setInputValue] = useState("")
   const router = useRouter()
+  const { handleTokenLimitError } = useTokenLimit()
 
   const isWorking = isLoading || isPending
 
@@ -44,9 +47,15 @@ export function AddTopicForm({ showSuggestions = false }: AddTopicFormProps) {
         })
       } else {
         console.error(result.error)
+        if (!handleTokenLimitError(result.error)) {
+          toast.error("Failed to create topic. Please try again.")
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error)
+      if (!handleTokenLimitError(error)) {
+        toast.error("An error occurred. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }

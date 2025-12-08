@@ -83,10 +83,6 @@ export async function checkAndIncrementUsage(userId: string, tokensToAdd: number
   // 4. Check Limit
   const limit = subscription ? (PLAN_LIMITS[subscription.price_id] || DEFAULT_LIMIT) : DEFAULT_LIMIT
   
-  if (usage.tokens_used + weightedTokens > limit) {
-    throw new Error('Token limit exceeded. Please upgrade your plan or wait for the next billing cycle.')
-  }
-
   // 5. Increment
   if (weightedTokens > 0) {
     const { error } = await supabase.rpc('increment_token_usage', { 
@@ -94,6 +90,10 @@ export async function checkAndIncrementUsage(userId: string, tokensToAdd: number
       amount: weightedTokens 
     })
     if (error) throw error
+  }
+
+  if (usage.tokens_used + weightedTokens > limit) {
+    throw new Error('Token limit exceeded. Please upgrade your plan or wait for the next billing cycle.')
   }
   
   // Calculate reset date

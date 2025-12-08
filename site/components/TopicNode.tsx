@@ -12,6 +12,7 @@ import { usePodcast } from '@/lib/contexts/PodcastContext'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { useTokenLimit } from '@/lib/hooks/use-token-limit'
 
 interface TopicNodeData extends Record<string, unknown> {
   id: string
@@ -103,8 +104,9 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
   // Podcast state
   const [isFetchingPodcast, setIsFetchingPodcast] = useState(false)
   const [podcastUrl, setPodcastUrl] = useState<string | null>(null)
-  const { playPodcast, currentUrl, isPlaying, togglePlayPause } = usePodcast()
+  const { playPodcast, currentUrl, isPlaying, isReady, togglePlayPause } = usePodcast()
   const router = useRouter()
+  const { handleTokenLimitError } = useTokenLimit()
   
   const isThisPodcastPlaying = isPlaying && currentUrl === podcastUrl
 
@@ -123,11 +125,15 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         setSummary(result.summary)
         onOpenSummary(label, result.summary)
       } else {
-        toast.error(result.error || 'Failed to generate summary')
+        if (!handleTokenLimitError(result.error)) {
+          toast.error(result.error || 'Failed to generate summary')
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error)
-      toast.error('Failed to generate summary')
+      if (!handleTokenLimitError(error)) {
+        toast.error('Failed to generate summary')
+      }
     } finally {
       setIsGeneratingSummary(false)
     }
@@ -193,11 +199,15 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         setResources(result.resources)
         onOpenResources(label, result.resources)
       } else {
-        toast.error(result.error || 'Failed to generate resources')
+        if (!handleTokenLimitError(result.error)) {
+          toast.error(result.error || 'Failed to generate resources')
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating resources:', error)
-      toast.error('An error occurred while generating resources')
+      if (!handleTokenLimitError(error)) {
+        toast.error('An error occurred while generating resources')
+      }
     } finally {
       setIsGeneratingResources(false)
     }
@@ -212,7 +222,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
     }
 
     if (podcastUrl && currentUrl === podcastUrl) {
-      // It's paused but loaded
+      // Already loaded for this node; just toggle play/pause
       togglePlayPause()
       return
     }
@@ -224,16 +234,15 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
       let url = podcastUrl
 
       if (!url) {
-        // Check for existing podcast
+        // Prefer existing cached podcast if present
         const existing = await getPodcast(id)
-        
         if (existing) {
           url = existing.audio_url
           setPodcastUrl(url)
         } else {
-          // Generate new
-          await onGeneratePodcast(id)
-          return
+          // Stream directly for immediate playback; cache-bust to avoid stale responses
+          url = `/api/podcast/stream?documentId=${id}&t=${Date.now()}`
+          setPodcastUrl(url)
         }
       }
 
@@ -242,25 +251,18 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
       }
     } catch (error) {
       console.error('Error playing podcast:', error)
-    } finally {
       setIsFetchingPodcast(false)
     }
   }
 
-  // Auto-play when generation finishes
-  const prevIsGenerating = useRef(isGeneratingPodcast)
+  // Clear local fetching state once this node's stream becomes ready
   useEffect(() => {
-     if (prevIsGenerating.current && !isGeneratingPodcast) {
-         // Just finished generating.
-         getPodcast(id).then(existing => {
-             if (existing && existing.audio_url) {
-                 setPodcastUrl(existing.audio_url)
-                 playPodcast(existing.audio_url, label)
-             }
-         })
-     }
-     prevIsGenerating.current = isGeneratingPodcast
-  }, [isGeneratingPodcast, id, label, playPodcast])
+    if (podcastUrl && currentUrl === podcastUrl && isReady) {
+      setIsFetchingPodcast(false)
+    }
+  }, [isReady, currentUrl, podcastUrl])
+
+
 
   return (
     <motion.div 

@@ -5,7 +5,7 @@ import { getUserSubscriptionStatus } from '@/lib/subscription'
 import { checkAndIncrementUsage } from '@/lib/token-usage'
 import { SupabaseClient } from '@supabase/supabase-js'
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 async function getTopicPath(supabase: SupabaseClient, startId: string) {
   const path: string[] = []
@@ -55,6 +55,12 @@ export async function POST(req: Request) {
   const { isPro } = await getUserSubscriptionStatus()
   const modelName = isPro ? 'gpt-5-mini' : 'gpt-5-mini'
 
+  try {
+    await checkAndIncrementUsage(user.id, 0, modelName)
+  } catch (error) {
+    return new Response('Token limit exceeded', { status: 402 })
+  }
+
   const path = await getTopicPath(supabase, documentId)
   const contextString = path.join(' > ')
   const currentTopic = path[path.length - 1]
@@ -71,8 +77,14 @@ export async function POST(req: Request) {
         .eq('id', documentId)
 
       // Track usage
-      if (usage) {
-        await checkAndIncrementUsage(user.id, usage.totalTokens, modelName)
+      let tokens = usage?.totalTokens
+      if (!tokens && text) {
+        // Fallback estimation: ~3 chars per token
+        tokens = Math.ceil(text.length / 3)
+      }
+
+      if (tokens) {
+        await checkAndIncrementUsage(user.id, tokens, modelName)
       }
     }
   })

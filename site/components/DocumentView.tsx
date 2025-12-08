@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useCompletion } from '@ai-sdk/react'
 import { StreamingText } from '@/components/StreamingText'
+import { useTokenLimit } from '@/lib/hooks/use-token-limit'
 
 // ============================================================================
 // TYPES
@@ -185,6 +186,7 @@ const HighlightTooltip = ({
 }
 
 export function DocumentView({ doc, rootId, autoGenerate, highlights = [] }: DocumentViewProps) {
+  const { handleTokenLimitError } = useTokenLimit()
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [isNotesOpen, setIsNotesOpen] = useState(false)
   const router = useRouter()
@@ -234,7 +236,9 @@ export function DocumentView({ doc, rootId, autoGenerate, highlights = [] }: Doc
     },
     onError: (error) => {
       console.error('Generation error:', error)
-      toast.error('Failed to generate document')
+      if (!handleTokenLimitError(error)) {
+        toast.error('Failed to generate document')
+      }
     }
   })
 

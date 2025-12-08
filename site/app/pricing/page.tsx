@@ -6,7 +6,8 @@ import CheckoutButton from '@/components/pricing/CheckoutButton';
 import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-
+import { Suspense } from 'react';
+import { PricingHeader } from '@/components/pricing/PricingHeader';
 import ManageSubscriptionButton from '@/components/settings/ManageSubscriptionButton';
 
 export const dynamic = 'force-dynamic';
@@ -83,14 +84,18 @@ export default async function PricingPage() {
       <Navbar />
       
       <div className="container mx-auto px-4 py-20">
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-            Pricing that scales
-          </h1>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Start for free, upgrade when you need more power. No hidden fees.
-          </p>
-        </div>
+        <Suspense fallback={
+          <div className="text-center mb-16">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
+              Pricing that scales
+            </h1>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Start for free, upgrade when you need more power. No hidden fees.
+            </p>
+          </div>
+        }>
+          <PricingHeader />
+        </Suspense>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto">
           {/* Hobby Plan */}

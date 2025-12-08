@@ -563,6 +563,6 @@ services:
     image: inbucket/inbucket:3.0.3
     restart: unless-stopped
     ports:
-      - "9000:9000"
+      - "9099:9000"
       - "2500:2500"
       - "1100:1100"

@@ -11,6 +11,8 @@ import { getChatMessages } from '@/app/documents/actions'
 import { toast } from 'sonner'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { useRouter } from 'next/navigation'
+import { useTokenLimit } from '@/lib/hooks/use-token-limit'
 
 interface DocumentSidePanelProps {
   topicId: string | null
@@ -22,10 +24,18 @@ interface DocumentSidePanelProps {
 }
 
 export function DocumentSidePanel({ topicId, isOpen, onClose, initialPrompt, pendingMessage, onMessageSent }: DocumentSidePanelProps) {
+  const router = useRouter()
+  const { handleTokenLimitError } = useTokenLimit()
   const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, append } = useChat({
     api: '/api/chat',
     body: { topicId },
     streamProtocol: 'text',
+    onError: (error) => {
+      console.error('Chat error:', error)
+      if (!handleTokenLimitError(error)) {
+        toast.error("Failed to send message. Please try again.")
+      }
+    }
   })
 
   const hasStartedRef = useRef(false)

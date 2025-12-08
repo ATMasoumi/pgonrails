@@ -2,14 +2,16 @@
 
 import { usePodcast } from "@/lib/contexts/PodcastContext"
 import { Button } from "@/components/ui/button"
-import { X, Play, Pause, Download, Volume2, VolumeX, RotateCcw, RotateCw, ChevronDown, ChevronUp } from "lucide-react"
+import { X, Play, Pause, Download, Volume2, VolumeX, RotateCcw, RotateCw, ChevronDown, ChevronUp, Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { Slider } from "@/components/ui/slider"
 import { motion, AnimatePresence } from "framer-motion"
+import { toast } from "sonner"
+import { getPodcast } from "@/app/documents/actions"
 
 export function PodcastPlayer() {
-  const { currentUrl, currentTitle, isPlaying, togglePlayPause, stopPodcast, setIsPlaying, audioRef } = usePodcast()
+  const { currentUrl, currentTitle, isPlaying, isReady, togglePlayPause, stopPodcast, setIsPlaying, setIsReady, audioRef } = usePodcast()
   const [progress, setProgress] = useState(0)
   const [duration, setDuration] = useState(0)
   const [volume, setVolume] = useState(1)
@@ -17,6 +19,8 @@ export function PodcastPlayer() {
   const [playbackRate, setPlaybackRate] = useState(1)
   const [isMinimized, setIsMinimized] = useState(false)
   const [showVolumeSlider, setShowVolumeSlider] = useState(false)
+  const [buffered, setBuffered] = useState(0)
+  const [hasAudioData, setHasAudioData] = useState(false)
 
   const [isDragging, setIsDragging] = useState(false)
 
@@ -30,6 +34,22 @@ export function PodcastPlayer() {
     const updateProgress = () => {
       if (!isDragging && audio.currentTime !== undefined) {
         setProgress(audio.currentTime)
+        if (audio.currentTime > 0 && !hasAudioData) {
+          setHasAudioData(true)
+        }
+      }
+      if (audio.buffered.length > 0) {
+        setBuffered(audio.buffered.end(audio.buffered.length - 1))
+        if (audio.buffered.end(audio.buffered.length - 1) > 0 && !hasAudioData) {
+          setHasAudioData(true)
+        }
+      }
+      // Try to backfill duration during streaming if still unknown
+      if ((!duration || !isFinite(duration)) && audio.seekable.length > 0) {
+        const seekableEnd = audio.seekable.end(audio.seekable.length - 1)
+        if (!isNaN(seekableEnd) && seekableEnd > 0) {
+          setDuration(seekableEnd)
+        }
       }
       if (isPlaying) {
         rafId = requestAnimationFrame(updateProgress)
@@ -39,6 +59,24 @@ export function PodcastPlayer() {
     const handleTimeUpdate = () => {
       if (!isDragging) {
         setProgress(audio.currentTime)
+        if (audio.currentTime > 0 && !hasAudioData) {
+          setHasAudioData(true)
+        }
+      }
+      if (audio.buffered.length > 0) {
+        setBuffered(audio.buffered.end(audio.buffered.length - 1))
+        if (audio.buffered.end(audio.buffered.length - 1) > 0 && !hasAudioData) {
+          setHasAudioData(true)
+        }
+      }
+    }
+
+    const handleProgress = () => {
+      if (audio.buffered.length > 0) {
+        setBuffered(audio.buffered.end(audio.buffered.length - 1))
+        if (audio.buffered.end(audio.buffered.length - 1) > 0 && !hasAudioData) {
+          setHasAudioData(true)
+        }
       }
     }
 
@@ -47,82 +85,249 @@ export function PodcastPlayer() {
     }
 
     audio.addEventListener('timeupdate', handleTimeUpdate)
+    audio.addEventListener('progress', handleProgress)
 
     return () => {
       if (rafId) cancelAnimationFrame(rafId)
       audio.removeEventListener('timeupdate', handleTimeUpdate)
+      audio.removeEventListener('progress', handleProgress)
     }
-  }, [isDragging, isPlaying, audioRef])
+  }, [isDragging, isPlaying, audioRef, duration])
 
-  // Handle audio events and duration
+  // Handle audio events, streaming readiness, and duration updates
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
+    const isStreamingSource = currentUrl?.includes('/api/podcast/stream')
+
     const updateDuration = () => {
-      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
-        setDuration(audio.duration)
-        console.log('Duration updated:', audio.duration)
+      const d = audio.duration
+      if (d && !isNaN(d) && isFinite(d)) {
+        setDuration(d)
+        // For cached/static files mark ready immediately; for streaming wait for saved metadata
+        if (!isStreamingSource && d > 0) {
+          setIsReady(true)
+        }
+        return
+      }
+
+      // Fallback for streaming sources without known duration (duration = Infinity)
+      if (audio.seekable?.length > 0) {
+        const seekableEnd = audio.seekable.end(audio.seekable.length - 1)
+        if (!isNaN(seekableEnd) && seekableEnd > 0) {
+          setDuration(seekableEnd)
+          return
+        }
+      }
+
+      if (audio.buffered?.length > 0) {
+        const bufferedEnd = audio.buffered.end(audio.buffered.length - 1)
+        if (!isNaN(bufferedEnd) && bufferedEnd > 0) {
+          setDuration(bufferedEnd)
+        }
       }
     }
 
     const handleLoadedMetadata = () => {
-      console.log('Metadata loaded, duration:', audio.duration)
       updateDuration()
     }
 
     const handleLoadedData = () => {
-      console.log('Data loaded, duration:', audio.duration)
+      setHasAudioData(true)
       updateDuration()
     }
 
     const handleCanPlay = () => {
-      console.log('Can play, duration:', audio.duration)
+      setHasAudioData(true)
       updateDuration()
     }
 
     const handleDurationChange = () => {
-      console.log('Duration changed:', audio.duration)
+      updateDuration()
+    }
+
+    const handlePlaying = () => {
+      setHasAudioData(true)
       updateDuration()
     }
 
     const handleEnded = () => {
+      // Ensure we capture final duration when streams report Infinity
+      const endTime = audio.currentTime || duration
+      if (endTime && endTime > duration) {
+        setDuration(endTime)
+      }
       setIsPlaying(false)
       setProgress(0)
     }
 
-    // Initial duration check
+    const handleError = () => {
+      const error = audio.error
+      if (error) {
+        console.error(`Audio playback error: Code ${error.code}, Message: ${error.message}`)
+      } else {
+        console.error('Audio playback error: Unknown error')
+      }
+      setIsPlaying(false)
+      setIsReady(false)
+      setHasAudioData(false)
+      toast.error("Failed to play podcast. Please try again. If you were signed out, please sign back in and retry.")
+    }
+
+    // Kick off duration check quickly for known durations (non-stream fallback)
     updateDuration()
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata)
     audio.addEventListener('loadeddata', handleLoadedData)
     audio.addEventListener('canplay', handleCanPlay)
     audio.addEventListener('durationchange', handleDurationChange)
+    audio.addEventListener('playing', handlePlaying)
     audio.addEventListener('ended', handleEnded)
+    audio.addEventListener('error', handleError)
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
       audio.removeEventListener('loadeddata', handleLoadedData)
       audio.removeEventListener('canplay', handleCanPlay)
       audio.removeEventListener('durationchange', handleDurationChange)
+      audio.removeEventListener('playing', handlePlaying)
       audio.removeEventListener('ended', handleEnded)
+      audio.removeEventListener('error', handleError)
     }
-  }, [audioRef, setIsPlaying, currentUrl])
+  }, [audioRef, setIsPlaying, setIsReady, currentUrl])
+
+  // Poll duration/seekable while streaming if metadata is missing
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || isReady || !currentUrl) return
+
+    const isStreamingSource = currentUrl.includes('/api/podcast/stream')
+
+    const interval = setInterval(() => {
+      // Try seekable first (preferred for streams)
+      if (audio.seekable?.length > 0) {
+        const end = audio.seekable.end(audio.seekable.length - 1)
+        if (!isNaN(end) && end > 0) {
+          setDuration(end)
+          if (!isStreamingSource) {
+            setIsReady(true)
+          }
+          return
+        }
+      }
+
+      // Fallback to buffered range
+      if (audio.buffered?.length > 0) {
+        const end = audio.buffered.end(audio.buffered.length - 1)
+        if (!isNaN(end) && end > 0) {
+          setDuration(end)
+        }
+      }
+
+      // If duration becomes finite, mark ready
+      if (audio.duration && isFinite(audio.duration) && !isNaN(audio.duration)) {
+        setDuration(audio.duration)
+        if (!isStreamingSource) {
+          setIsReady(true)
+        }
+      }
+    }, 500)
+
+    return () => clearInterval(interval)
+  }, [audioRef, currentUrl, isReady, setIsReady])
 
   useEffect(() => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.play().catch(e => console.error("Playback failed", e))
-      } else {
-        audioRef.current.pause()
-      }
+    const audio = audioRef.current
+    if (!audio) return
+
+    // Autoplay once any audio data is available for streaming; browsers may block autoplay without user gesture
+    if (isPlaying) {
+      audio.play().catch(e => console.error("Playback failed", e))
+    } else {
+      audio.pause()
     }
   }, [isPlaying, currentUrl, audioRef])
 
   // Reset progress when URL changes
   useEffect(() => {
     setProgress(0)
+    setDuration(0)
+    setHasAudioData(false)
   }, [currentUrl])
+
+  // When streaming a fresh podcast, poll (with backoff) for the saved file after first audio data arrives, then swap to the saved file to read real duration
+  useEffect(() => {
+    // Only start polling after we know we received some audio data (first chunk)
+    if (!currentUrl || isReady || !hasAudioData) return
+
+    let cancelled = false
+    let switched = false
+    const url = (() => {
+      try {
+        return new URL(currentUrl, window.location.origin)
+      } catch (e) {
+        return null
+      }
+    })()
+
+    const documentId = url?.searchParams.get('documentId')
+    if (!documentId) return
+
+    let timeout: ReturnType<typeof setTimeout> | null = null
+    let attempts = 0
+    let delay = 1500 // start after initial 1.5s to allow upload to begin
+
+    const pollForSaved = async () => {
+      if (cancelled) return
+      attempts += 1
+      try {
+        const existing = await getPodcast(documentId)
+        if (existing?.audio_url && audioRef.current && !switched) {
+          const audio = audioRef.current
+          const wasPlaying = isPlaying
+          const currentTime = audio.currentTime || 0
+          const savedUrl = existing.audio_url
+
+          switched = true
+
+          const handleSavedMetadata = () => {
+            if (cancelled) return
+            const metaDuration = audio.duration
+            if (metaDuration && isFinite(metaDuration) && !isNaN(metaDuration)) {
+              setDuration(metaDuration)
+              setIsReady(true)
+            }
+            setHasAudioData(true)
+            audio.currentTime = currentTime
+            if (wasPlaying) {
+              audio.play().catch(() => {})
+            }
+          }
+
+          audio.addEventListener('loadedmetadata', handleSavedMetadata, { once: true })
+          audio.src = savedUrl
+          audio.load()
+          return
+        }
+      } catch (e) {
+        console.error('Podcast metadata poll failed', e)
+      }
+
+      if (attempts < 40) {
+        // Exponential-ish backoff capped at 8s to handle slower uploads
+        delay = Math.min(delay * 1.25, 8000)
+        timeout = setTimeout(pollForSaved, delay)
+      }
+    }
+
+    timeout = setTimeout(pollForSaved, delay)
+
+    return () => {
+      cancelled = true
+      if (timeout) clearTimeout(timeout)
+    }
+  }, [currentUrl, isReady, hasAudioData, isPlaying, setIsReady])
 
   useEffect(() => {
     if (audioRef.current) {
@@ -138,7 +343,7 @@ export function PodcastPlayer() {
   }, [volume, audioRef])
 
   const formatTime = (time: number) => {
-    if (isNaN(time) || time === 0 || !isFinite(time)) return "0:00"
+    if (isNaN(time) || time <= 0 || !isFinite(time)) return "0:00"
     const minutes = Math.floor(time / 60)
     const seconds = Math.floor(time % 60)
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
@@ -161,7 +366,7 @@ export function PodcastPlayer() {
   const handleSkip = (seconds: number) => {
     if (audioRef.current) {
       const currentTime = audioRef.current.currentTime
-      const maxTime = duration > 0 ? duration : audioRef.current.duration
+      const maxTime = duration > 0 ? duration : audioRef.current.duration || currentTime + Math.abs(seconds)
       const newTime = Math.min(Math.max(currentTime + seconds, 0), maxTime)
       audioRef.current.currentTime = newTime
       setProgress(newTime)
@@ -175,21 +380,20 @@ export function PodcastPlayer() {
   }
 
   const handleDownload = async () => {
-    if (currentUrl) {
-      try {
-        const response = await fetch(currentUrl)
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `${currentTitle || 'podcast'}.mp3`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-      } catch (error) {
-        console.error('Download failed:', error)
-      }
+    if (!currentUrl) return
+    try {
+      const response = await fetch(currentUrl)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${currentTitle || 'podcast'}.mp3`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Download failed:', error)
     }
   }
 
@@ -226,7 +430,8 @@ export function PodcastPlayer() {
       )}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
     >
-      <audio ref={audioRef} src={currentUrl} crossOrigin="anonymous" />
+      {/* Do not set crossOrigin so cookies/auth are sent for same-origin streaming */}
+      <audio ref={audioRef} src={currentUrl} />
       
       <AnimatePresence mode="popLayout" initial={false}>
         {isMinimized ? (
@@ -312,17 +517,33 @@ export function PodcastPlayer() {
             <div className="space-y-4">
               {/* Progress Bar */}
               <div className="space-y-2">
-                <Slider
-                  value={[progress]}
-                  max={duration > 0 ? duration : 100}
-                  step={0.1}
-                  onValueChange={handleSeek}
-                  onValueCommit={handleSeekCommit}
-                  className="cursor-pointer group [&>span:first-child]:h-2 [&>span:first-child]:bg-white/10 [&>span>span]:bg-gradient-to-r [&>span>span]:from-white [&>span>span]:to-gray-300 [&_[role=slider]]:bg-white [&_[role=slider]]:border-none [&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[role=slider]]:shadow-xl [&_[role=slider]]:shadow-white/20 [&_[role=slider]]:opacity-0 group-hover:[&_[role=slider]]:opacity-100 [&_[role=slider]]:transition-all hover:[&_[role=slider]]:scale-125 active:[&_[role=slider]]:opacity-100 active:[&_[role=slider]]:scale-110"
-                />
+                <div className="relative h-4 w-full flex items-center">
+                  {/* Buffered Bar */}
+                  <div 
+                    className="absolute left-0 h-1.5 rounded-full bg-white/20 transition-all duration-300 ease-out pointer-events-none"
+                    style={{ width: `${duration > 0 ? (buffered / duration) * 100 : 0}%` }}
+                  />
+                  <Slider
+                    value={[progress]}
+                    max={duration > 0 ? duration : 100}
+                    step={0.1}
+                    onValueChange={handleSeek}
+                    onValueCommit={handleSeekCommit}
+                    className="cursor-pointer group [&>span:first-child]:bg-transparent [&>span:first-child]:h-1.5 [&>span>span]:bg-gradient-to-r [&>span>span]:from-white [&>span>span]:to-gray-300 [&_[role=slider]]:bg-white [&_[role=slider]]:border-none [&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[role=slider]]:shadow-xl [&_[role=slider]]:shadow-white/20 [&_[role=slider]]:opacity-0 group-hover:[&_[role=slider]]:opacity-100 [&_[role=slider]]:transition-all hover:[&_[role=slider]]:scale-125 active:[&_[role=slider]]:opacity-100 active:[&_[role=slider]]:scale-110"
+                  />
+                </div>
                 <div className="flex justify-between items-center px-0.5">
                   <span className="text-xs text-white font-medium font-mono">{formatTime(progress)}</span>
-                  <span className="text-xs text-gray-500 font-mono">{formatTime(duration)}</span>
+                  <span className="text-xs text-gray-500 font-mono flex items-center gap-1">
+                    {isReady && duration > 0 ? (
+                      formatTime(duration)
+                    ) : (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span className="text-[10px] uppercase tracking-wide text-gray-400">loading</span>
+                      </>
+                    )}
+                  </span>
                 </div>
               </div>
 

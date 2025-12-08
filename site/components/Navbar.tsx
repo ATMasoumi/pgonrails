@@ -6,7 +6,7 @@ import Link from "next/link"
 import { signout } from "@/app/auth/actions"
 import { useAppContext } from "@/lib/contexts/appContext"
 import { useSubscription } from "@/lib/contexts/SubscriptionContext"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useSearchParams, useRouter } from "next/navigation"
 import { Badge } from "./ui/badge"
 import {
   DropdownMenu,
@@ -30,11 +30,13 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
     const { user } = useAppContext()
     const { isPro, isLoading } = useSubscription()
     const pathname = usePathname()
+    const searchParams = useSearchParams()
     const router = useRouter()
 
     const isDashboard = pathname === "/dashboard" || pathname.startsWith("/dashboard/")
     const isBoard = pathname.startsWith("/boards/")
     const isPricing = pathname === "/pricing"
+    const isPricingLimitReached = isPricing && searchParams.get('limit') === 'reached'
     const isSettings = pathname === "/settings"
     const [dropdownOpen, setDropdownOpen] = useState(false)
     
@@ -175,7 +177,7 @@ export default function Navbar({ boardTitle, onEditBoard, onFilterClick, filterC
                     <span className={`text-xl sm:text-2xl font-bold ${isPricing || isSettings ? "text-white" : "text-gray-900"}`}>DocTree</span>
                 </Link>
                 <div className="flex items-center space-x-2 sm:space-x-4">
-                    {!isPro && !isLoading && (
+                    {!isPro && !isLoading && !isPricing && (
                         <Link prefetch={false} href="/pricing" className={`text-sm font-medium mr-4 ${isPricing || isSettings ? "text-gray-300 hover:text-white" : "text-gray-700 hover:text-gray-900"}`}>
                             Pricing
                         </Link>

@@ -325,6 +325,7 @@ These subtopics should help someone who has followed the learning path above to 
       
     } catch (error) {
       console.error('Error generating subtopics:', error)
+      throw error
     }
   } else {
     try {
@@ -351,6 +352,7 @@ These subtopics should help someone who has followed the learning path above to 
 
     } catch (error) {
       console.error('Error generating content:', error)
+      throw error
     }
   }
 }
@@ -371,11 +373,10 @@ export async function generateTopicContent(id: string, type: 'subtopic' | 'expla
   const contextString = path.join(' > ')
   const currentTopic = path[path.length - 1]
 
-  // Start generation in background (fire and forget)
-  processTopicGeneration(user.id, id, type, contextString, currentTopic, isPro)
-    .catch(err => console.error('Background generation error:', err))
+  // Await generation to handle errors (like token limits) and propagate them to the client
+  await processTopicGeneration(user.id, id, type, contextString, currentTopic, isPro)
 
-  return { success: true, message: "Generation started" }
+  return { success: true, message: "Generation completed" }
 }
 
 export async function deleteTopic(id: string) {
