@@ -377,7 +377,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     isGenerating: false
   })
 
-  const handleGenerationError = useCallback((error: any) => {
+  const handleGenerationError = useCallback((error: unknown) => {
     console.error(error)
     if (!handleTokenLimitError(error)) {
       toast.error("An error occurred. Please try again.")

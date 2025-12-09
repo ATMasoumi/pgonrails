@@ -7,8 +7,12 @@ import { useCallback } from "react"
 export function useTokenLimit() {
   const router = useRouter()
 
-  const handleTokenLimitError = useCallback((error: any) => {
-    const errorMessage = typeof error === 'string' ? error : error?.message || ''
+  const handleTokenLimitError = useCallback((error: unknown) => {
+    const errorMessage = typeof error === 'string' 
+      ? error 
+      : (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string')
+        ? error.message
+        : ''
     
     if (
       errorMessage.includes('Token limit exceeded') || 

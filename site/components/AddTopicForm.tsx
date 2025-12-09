@@ -51,7 +51,7 @@ export function AddTopicForm({ showSuggestions = false }: AddTopicFormProps) {
           toast.error("Failed to create topic. Please try again.")
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error)
       if (!handleTokenLimitError(error)) {
         toast.error("An error occurred. Please try again.")

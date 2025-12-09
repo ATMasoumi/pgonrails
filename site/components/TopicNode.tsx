@@ -1,13 +1,12 @@
 "use client"
 
-import { memo, useState, useEffect, useRef } from 'react'
+import { memo, useState, useEffect } from 'react'
 import { Handle, Position, NodeProps, Node } from '@xyflow/react'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square, Library } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { generatePodcast, getPodcast, generateResources, generateSummary } from '@/app/documents/actions'
+import { getPodcast, generateResources, generateSummary } from '@/app/documents/actions'
 import { ResourceData } from '@/components/ResourcesModal'
-import { QuizQuestion } from '@/components/QuizSidePanel'
 import { usePodcast } from '@/lib/contexts/PodcastContext'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
@@ -53,7 +52,7 @@ type TopicNode = Node<TopicNodeData>
 const animatedNodes = new Set<string>()
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, isGeneratingSubtopics, isGeneratingExplanation, isGeneratingPodcast, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary, onGeneratePodcast, isNew } = data
+  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, isGeneratingSubtopics, isGeneratingExplanation, isGeneratingPodcast, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary, isNew } = data
   const [isDeleting, setIsDeleting] = useState(false)
   
   // Check if this is a new node that hasn't been animated yet
@@ -129,7 +128,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
           toast.error(result.error || 'Failed to generate summary')
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error)
       if (!handleTokenLimitError(error)) {
         toast.error('Failed to generate summary')
@@ -203,7 +202,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
           toast.error(result.error || 'Failed to generate resources')
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error generating resources:', error)
       if (!handleTokenLimitError(error)) {
         toast.error('An error occurred while generating resources')

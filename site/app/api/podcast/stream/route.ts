@@ -111,10 +111,10 @@ export async function GET(req: NextRequest) {
     const rawBody = response.body
     let nodeStream: Readable
 
-    if (rawBody && typeof (rawBody as any).getReader === 'function') {
+    if (rawBody && typeof (rawBody as ReadableStream).getReader === 'function') {
         // It's a Web Stream
-        // @ts-ignore
-        nodeStream = Readable.fromWeb(rawBody as any)
+        // @ts-expect-error - fromWeb expects Web Stream API types
+        nodeStream = Readable.fromWeb(rawBody as ReadableStream)
     } else {
         // It's a Node Stream
         nodeStream = rawBody as unknown as Readable
