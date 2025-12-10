@@ -5,6 +5,9 @@ export function Footer() {
     <footer className="py-12 text-center border-t border-white/10 bg-[#020202]">
       <div className="mx-auto max-w-7xl px-6 md:flex md:items-center md:justify-between lg:px-8">
         <div className="flex justify-center space-x-6 md:order-2">
+          <Link href="/contact" className="text-sm leading-6 text-gray-600 hover:text-gray-400 transition-colors">
+            Contact Us
+          </Link>
           <Link href="/privacy-policy" className="text-sm leading-6 text-gray-600 hover:text-gray-400 transition-colors">
             Privacy Policy
           </Link>
