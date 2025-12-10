@@ -64,6 +64,14 @@ export async function signup(currentState: { message: string }, formData: FormDa
 
     if (signUpError) {
         console.log("Signup error:", signUpError)
+
+        // Handle connection/timeout errors
+        if (signUpError.status === 504 || signUpError.status === 502) {
+            return {
+                message: "Unable to connect to the server. Please try again later."
+            }
+        }
+
         if (signUpError.message.includes("already registered")) {
             console.log("User already registered, attempting resend...")
             // Try to resend verification code to see if they are unverified
@@ -86,7 +94,7 @@ export async function signup(currentState: { message: string }, formData: FormDa
         }
 
         return {
-            message: signUpError.message
+            message: signUpError.message || "An error occurred during signup."
         }
     }
 
