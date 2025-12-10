@@ -2,15 +2,71 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, Youtube, Book, User, FileText } from "lucide-react"
+import { ExternalLink, Youtube, Book, User, FileText, Eye, Calendar } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+export interface YouTubeVideo {
+  title: string
+  url: string
+  channelName: string
+  // YouTube API enriched fields
+  videoId?: string
+  thumbnail?: string
+  viewCount?: number
+  duration?: string // ISO 8601 format, e.g., "PT10M30S"
+  publishedAt?: string
+  description?: string
+}
+
 export interface ResourceData {
-  youtubeVideos: { title: string; url: string; channelName: string }[]
+  youtubeVideos: YouTubeVideo[]
   articles: { title: string; url: string; source: string }[]
   books: { title: string; author: string; description: string }[]
   influencers: { name: string; platform: string; handle: string; description: string }[]
+}
+
+// Format ISO 8601 duration to human readable (e.g., "PT10M30S" -> "10:30")
+function formatDuration(isoDuration?: string): string {
+  if (!isoDuration) return '';
+  
+  const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return '';
+  
+  const hours = match[1] ? parseInt(match[1]) : 0;
+  const minutes = match[2] ? parseInt(match[2]) : 0;
+  const seconds = match[3] ? parseInt(match[3]) : 0;
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+// Format view count to human readable (e.g., 1234567 -> "1.2M")
+function formatViewCount(count?: number): string {
+  if (!count) return '';
+  if (count >= 1000000) {
+    return `${(count / 1000000).toFixed(1)}M views`;
+  } else if (count >= 1000) {
+    return `${(count / 1000).toFixed(1)}K views`;
+  }
+  return `${count} views`;
+}
+
+// Format date to relative time (e.g., "2 years ago")
+function formatRelativeDate(dateString?: string): string {
+  if (!dateString) return '';
+  
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+  return `${Math.floor(diffDays / 365)}y ago`;
 }
 
 interface ResourcesModalProps {
@@ -52,20 +108,65 @@ export function ResourcesModal({ isOpen, onClose, resources, isLoading }: Resour
             <ScrollArea className="flex-1 mt-4">
               <TabsContent value="youtube" className="space-y-4 pr-4 mt-0">
                 {resources.youtubeVideos.map((video, i) => (
-                  <div key={i} className="p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-colors group">
-                    <div className="flex justify-between items-start gap-4">
-                      <div>
-                        <h3 className="font-semibold text-lg text-gray-200 group-hover:text-blue-400 transition-colors">{video.title}</h3>
-                        <p className="text-sm text-gray-500 mt-1">{video.channelName}</p>
+                  <a 
+                    key={i} 
+                    href={video.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-blue-500/30 transition-all duration-200 group overflow-hidden"
+                  >
+                    <div className="flex gap-4">
+                      {/* Thumbnail */}
+                      {video.thumbnail ? (
+                        <div className="relative w-48 h-28 shrink-0 bg-black/50">
+                          <img 
+                            src={video.thumbnail} 
+                            alt={video.title}
+                            className="w-full h-full object-cover"
+                          />
+                          {video.duration && (
+                            <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+                              {formatDuration(video.duration)}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="relative w-48 h-28 shrink-0 bg-gradient-to-br from-red-900/30 to-red-600/20 flex items-center justify-center">
+                          <Youtube className="w-12 h-12 text-red-400/50" />
+                        </div>
+                      )}
+                      
+                      {/* Content */}
+                      <div className="flex-1 py-3 pr-4 min-w-0">
+                        <h3 className="font-semibold text-base text-gray-200 group-hover:text-blue-400 transition-colors line-clamp-2 leading-tight">
+                          {video.title}
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-1.5">{video.channelName}</p>
+                        
+                        {/* Stats row */}
+                        {(video.viewCount || video.publishedAt) && (
+                          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                            {video.viewCount && (
+                              <span className="flex items-center gap-1">
+                                <Eye className="w-3 h-3" />
+                                {formatViewCount(video.viewCount)}
+                              </span>
+                            )}
+                            {video.publishedAt && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {formatRelativeDate(video.publishedAt)}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <Button variant="outline" size="sm" className="bg-white/5 border-white/10 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50" asChild>
-                        <a href={video.url} target="_blank" rel="noopener noreferrer">
-                          Watch <ExternalLink className="ml-2 h-4 w-4" />
-                        </a>
-                      </Button>
                     </div>
-                  </div>
+                  </a>
                 ))}
+                {resources.youtubeVideos.length === 0 && (
+                  <div className="text-center text-gray-500 py-8">No videos found</div>
+                )}
               </TabsContent>
 
               <TabsContent value="articles" className="space-y-4 pr-4 mt-0">
@@ -76,7 +177,7 @@ export function ResourcesModal({ isOpen, onClose, resources, isLoading }: Resour
                         <h3 className="font-semibold text-lg text-gray-200 group-hover:text-emerald-400 transition-colors">{article.title}</h3>
                         <p className="text-sm text-gray-500 mt-1">{article.source}</p>
                       </div>
-                      <Button variant="outline" size="sm" className="bg-white/5 border-white/10 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/50" asChild>
+                      <Button variant="outline" size="sm" className="bg-white/5 border-white/10 text-gray-200 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/50" asChild>
                         <a href={article.url} target="_blank" rel="noopener noreferrer">
                           Read <ExternalLink className="ml-2 h-4 w-4" />
                         </a>
@@ -96,12 +197,12 @@ export function ResourcesModal({ isOpen, onClose, resources, isLoading }: Resour
                         <p className="text-sm text-gray-500">{book.description}</p>
                       </div>
                       <div className="flex flex-col gap-2 shrink-0">
-                        <Button variant="outline" size="sm" className="bg-white/5 border-white/10 hover:bg-purple-500/20 hover:text-purple-400 hover:border-purple-500/50" asChild>
+                        <Button variant="outline" size="sm" className="bg-white/5 border-white/10 text-gray-200 hover:bg-purple-500/20 hover:text-purple-400 hover:border-purple-500/50" asChild>
                           <a href={`https://www.amazon.com/s?k=${encodeURIComponent(book.title + ' ' + book.author)}`} target="_blank" rel="noopener noreferrer">
                             Amazon <ExternalLink className="ml-2 h-4 w-4" />
                           </a>
                         </Button>
-                        <Button variant="outline" size="sm" className="bg-white/5 border-white/10 hover:bg-amber-500/20 hover:text-amber-400 hover:border-amber-500/50" asChild>
+                        <Button variant="outline" size="sm" className="bg-white/5 border-white/10 text-gray-200 hover:bg-amber-500/20 hover:text-amber-400 hover:border-amber-500/50" asChild>
                           <a href={`https://www.goodreads.com/search?q=${encodeURIComponent(book.title + ' ' + book.author)}`} target="_blank" rel="noopener noreferrer">
                             Goodreads <ExternalLink className="ml-2 h-4 w-4" />
                           </a>
@@ -137,7 +238,7 @@ export function ResourcesModal({ isOpen, onClose, resources, isLoading }: Resour
                           <p className="text-sm text-gray-500 mt-1">{influencer.platform} • @{influencer.handle.replace('@', '')}</p>
                           <p className="text-sm text-gray-500 mt-2">{influencer.description}</p>
                         </div>
-                        <Button variant="outline" size="sm" className="bg-white/5 border-white/10 hover:bg-orange-500/20 hover:text-orange-400 hover:border-orange-500/50 shrink-0" asChild>
+                        <Button variant="outline" size="sm" className="bg-white/5 border-white/10 text-gray-200 hover:bg-orange-500/20 hover:text-orange-400 hover:border-orange-500/50 shrink-0" asChild>
                           <a href={getProfileUrl()} target="_blank" rel="noopener noreferrer">
                             Follow <ExternalLink className="ml-2 h-4 w-4" />
                           </a>

@@ -56,6 +56,186 @@ const serperSearch = async (query: string, retries = 2): Promise<{ organic: Arra
   
   throw new Error('Serper search failed after retries');
 }
+
+// YouTube Data API helper for enriching video data
+interface YouTubeVideoDetails {
+  videoId: string
+  title: string
+  channelName: string
+  thumbnail: string
+  viewCount: number
+  duration: string
+  publishedAt: string
+  description: string
+}
+
+// Extract video ID from various YouTube URL formats
+function extractYouTubeVideoId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?]+)/,
+    /youtube\.com\/watch\?.*v=([^&\s]+)/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+// Format ISO 8601 duration to human readable (e.g., "PT10M30S" -> "10:30")
+function formatYouTubeDuration(isoDuration: string): string {
+  if (!isoDuration) return '';
+  
+  const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return isoDuration;
+  
+  const hours = match[1] ? parseInt(match[1]) : 0;
+  const minutes = match[2] ? parseInt(match[2]) : 0;
+  const seconds = match[3] ? parseInt(match[3]) : 0;
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+// Format view count to human readable (e.g., 1234567 -> "1.2M")
+function formatViewCount(count: number): string {
+  if (count >= 1000000) {
+    return `${(count / 1000000).toFixed(1)}M`;
+  } else if (count >= 1000) {
+    return `${(count / 1000).toFixed(1)}K`;
+  }
+  return count.toString();
+}
+
+// Fetch video details from YouTube Data API
+async function fetchYouTubeVideoDetails(videoIds: string[]): Promise<Map<string, YouTubeVideoDetails>> {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  const results = new Map<string, YouTubeVideoDetails>();
+  
+  if (!apiKey || videoIds.length === 0) {
+    console.log('[YouTube API] No API key or no video IDs provided');
+    return results;
+  }
+  
+  try {
+    // YouTube API allows up to 50 video IDs per request
+    const batchSize = 50;
+    for (let i = 0; i < videoIds.length; i += batchSize) {
+      const batch = videoIds.slice(i, i + batchSize);
+      const idsParam = batch.join(',');
+      
+      console.log(`[YouTube API] Fetching details for ${batch.length} videos`);
+      
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${idsParam}&key=${apiKey}`
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[YouTube API] Error:', response.status, errorText);
+        continue;
+      }
+      
+      const data = await response.json();
+      
+      if (data.items) {
+        for (const item of data.items) {
+          results.set(item.id, {
+            videoId: item.id,
+            title: item.snippet?.title || '',
+            channelName: item.snippet?.channelTitle || '',
+            thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '',
+            viewCount: parseInt(item.statistics?.viewCount || '0'),
+            duration: item.contentDetails?.duration || '',
+            publishedAt: item.snippet?.publishedAt || '',
+            description: item.snippet?.description?.substring(0, 200) || '',
+          });
+        }
+      }
+    }
+    
+    console.log(`[YouTube API] Successfully fetched ${results.size} video details`);
+  } catch (error) {
+    console.error('[YouTube API] Failed to fetch video details:', error);
+  }
+  
+  return results;
+}
+
+// Search YouTube directly using the API - prioritizes popular, high-quality videos
+async function searchYouTubeVideos(query: string, maxResults = 6): Promise<YouTubeVideoDetails[]> {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  
+  if (!apiKey) {
+    console.log('[YouTube API] No API key for search');
+    return [];
+  }
+  
+  try {
+    console.log('[YouTube API] Searching for:', query);
+    
+    // Search for more videos initially, then filter by quality
+    const searchCount = Math.min(maxResults * 3, 25); // Fetch 3x more to filter
+    
+    // Search for videos - order by viewCount to get popular videos first
+    const searchResponse = await fetch(
+      `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${searchCount}&order=viewCount&relevanceLanguage=en&videoDuration=medium&key=${apiKey}`
+    );
+    
+    if (!searchResponse.ok) {
+      const errorText = await searchResponse.text();
+      console.error('[YouTube API] Search error:', searchResponse.status, errorText);
+      return [];
+    }
+    
+    const searchData = await searchResponse.json();
+    const videoIds = searchData.items?.map((item: { id?: { videoId?: string } }) => item.id?.videoId).filter(Boolean) || [];
+    
+    if (videoIds.length === 0) {
+      return [];
+    }
+    
+    // Get detailed info for the videos (includes view count and likes)
+    const detailsMap = await fetchYouTubeVideoDetails(videoIds);
+    
+    // Convert to array and filter/sort by quality metrics
+    let videos = videoIds
+      .map((id: string) => detailsMap.get(id))
+      .filter((v: YouTubeVideoDetails | undefined): v is YouTubeVideoDetails => v !== undefined);
+    
+    // Filter for quality: minimum 10K views
+    const MIN_VIEWS = 10000;
+    const qualityVideos = videos.filter(v => v.viewCount >= MIN_VIEWS);
+    
+    // If we have enough quality videos, use those; otherwise use what we have
+    if (qualityVideos.length >= maxResults) {
+      videos = qualityVideos;
+    }
+    
+    // Sort by view count (highest first)
+    videos.sort((a, b) => b.viewCount - a.viewCount);
+    
+    // Return top results
+    const result = videos.slice(0, maxResults);
+    
+    console.log(`[YouTube API] Found ${result.length} high-quality videos (min ${MIN_VIEWS} views)`);
+    if (result.length > 0) {
+      console.log(`[YouTube API] Top video: "${result[0].title}" with ${result[0].viewCount.toLocaleString()} views`);
+    }
+    
+    return result;
+      
+  } catch (error) {
+    console.error('[YouTube API] Search failed:', error);
+    return [];
+  }
+}
+
 import { checkAndIncrementUsage } from '@/lib/token-usage'
 import { getUserSubscriptionStatus } from '@/lib/subscription'
 
@@ -866,36 +1046,59 @@ export async function generateResources(documentId: string, topic: string, conte
   }
 
   try {
-    let searchContext = '';
+    // Define the enriched video type
+    interface EnrichedYouTubeVideo {
+      title: string;
+      url: string;
+      channelName: string;
+      videoId?: string;
+      thumbnail?: string;
+      viewCount?: number;
+      duration?: string;
+      publishedAt?: string;
+      description?: string;
+    }
+
+    // Fetch YouTube videos directly using YouTube API
+    let youtubeVideos: EnrichedYouTubeVideo[] = [];
+    const youtubeApiKey = process.env.YOUTUBE_API_KEY;
     
-    // Check if Serper API key is available
+    if (youtubeApiKey) {
+      console.log('[Resources] Fetching YouTube videos via YouTube API for:', topic);
+      const youtubeResults = await searchYouTubeVideos(`${topic} tutorial explained`, 6);
+      
+      if (youtubeResults.length > 0) {
+        youtubeVideos = youtubeResults.map(v => ({
+          title: v.title,
+          url: `https://www.youtube.com/watch?v=${v.videoId}`,
+          channelName: v.channelName,
+          videoId: v.videoId,
+          thumbnail: v.thumbnail,
+          viewCount: v.viewCount,
+          duration: v.duration,
+          publishedAt: v.publishedAt,
+          description: v.description,
+        }));
+        console.log(`[Resources] Found ${youtubeVideos.length} videos from YouTube API`);
+      }
+    } else {
+      console.log('[Resources] No YouTube API key available');
+    }
+
+    // Use Serper for articles, books, and experts only (not YouTube)
+    let searchContext = '';
     const serperApiKey = process.env.SERPER_API_KEY;
     
     if (serperApiKey) {
       try {
-        console.log('[Resources] Starting Serper search for topic:', topic);
+        console.log('[Resources] Starting Serper search for articles, books, experts:', topic);
         
-        // Use Serper (Google Search) for reliable web search
-        // Run searches in parallel for speed
-        const [youtubeResponse, articleResponse, bookResponse, expertResponse] = await Promise.all([
-          serperSearch(`site:youtube.com ${topic} tutorial course explained`),
+        const [articleResponse, bookResponse, expertResponse] = await Promise.all([
           serperSearch(`${topic} tutorial guide site:medium.com OR site:dev.to OR site:freecodecamp.org`),
           serperSearch(`${topic} best books site:goodreads.com OR site:amazon.com`),
           serperSearch(`${topic} expert site:twitter.com OR site:linkedin.com`)
         ]);
 
-        console.log('[Resources] Serper raw responses:', {
-          youtube: youtubeResponse.organic?.length || 0,
-          articles: articleResponse.organic?.length || 0,
-          books: bookResponse.organic?.length || 0,
-          experts: expertResponse.organic?.length || 0
-        });
-
-        // Extract and categorize results
-        const youtubeResults = (youtubeResponse.organic || [])
-          .filter(r => r.link.includes('youtube.com/watch') || r.link.includes('youtu.be'))
-          .slice(0, 6);
-        
         const articleResults = (articleResponse.organic || [])
           .filter(r => !r.link.includes('youtube.com'))
           .slice(0, 6);
@@ -908,17 +1111,7 @@ export async function generateResources(documentId: string, topic: string, conte
           .filter(r => r.link.includes('twitter.com') || r.link.includes('x.com') || r.link.includes('linkedin.com'))
           .slice(0, 4);
 
-        console.log('[Resources] Filtered results:', {
-          youtube: youtubeResults.map(r => ({ title: r.title, url: r.link })),
-          articles: articleResults.map(r => ({ title: r.title, url: r.link })),
-          books: bookResults.map(r => ({ title: r.title, url: r.link })),
-          experts: expertResults.map(r => ({ title: r.title, url: r.link }))
-        });
-
         searchContext = `
-=== YOUTUBE VIDEOS (from Google search) ===
-${youtubeResults.length > 0 ? youtubeResults.map(r => `Title: ${r.title}\nURL: ${r.link}\nDescription: ${r.snippet || 'N/A'}`).join('\n\n') : 'No YouTube results found.'}
-
 === ARTICLES & DOCUMENTATION (from Google search) ===
 ${articleResults.length > 0 ? articleResults.map(r => `Title: ${r.title}\nURL: ${r.link}\nSource: ${new URL(r.link).hostname.replace('www.', '')}`).join('\n\n') : 'No article results found.'}
 
@@ -929,21 +1122,19 @@ ${bookResults.length > 0 ? bookResults.map(r => `Title: ${r.title}\nURL: ${r.lin
 ${expertResults.length > 0 ? expertResults.map(r => `Title: ${r.title}\nURL: ${r.link}`).join('\n\n') : 'No expert profiles found.'}
         `;
         
-        console.log('[Resources] Serper search completed successfully');
-        console.log('[Resources] Search context length:', searchContext.length, 'chars');
+        console.log('[Resources] Serper search completed for articles/books/experts');
       } catch (searchError) {
         console.error('[Resources] Serper search failed:', searchError);
         searchContext = '';
       }
     }
     
-    // If no search results (no API key or search failed), use AI knowledge
+    // If no search results, use AI knowledge
     if (!searchContext) {
-      console.log('[Resources] Using AI knowledge for resource generation');
+      console.log('[Resources] Using AI knowledge for articles, books, experts');
       searchContext = `No web search available. Generate high-quality resources based on your knowledge:
 
 For the topic "${topic}", recommend REAL, VERIFIED resources:
-- Well-known YouTube channels and their specific educational videos
 - Popular articles from Medium, freeCodeCamp, dev.to, official documentation
 - Classic and highly-rated books with real authors
 - Recognized experts and thought leaders with real Twitter/LinkedIn handles
@@ -951,17 +1142,12 @@ For the topic "${topic}", recommend REAL, VERIFIED resources:
 IMPORTANT: Only recommend resources you are confident actually exist.`;
     }
 
+    // Generate articles, books, and influencers with AI (YouTube handled separately)
     const { object, usage } = await generateObject({
       model: openai('gpt-5-mini'),
-      system: `You are an expert educational curator specializing in finding the highest quality learning resources. Your goal is to recommend ONLY genuinely useful, verified resources that will help someone master the given topic.
+      system: `You are an expert educational curator. Your goal is to recommend ONLY genuinely useful, verified resources.
 
 CRITICAL GUIDELINES:
-
-For YouTube Videos:
-- If search results are available, use URLs from them
-- If not, recommend well-known educational channels (e.g., 3Blue1Brown, Fireship, Traversy Media, freeCodeCamp, etc.)
-- Use valid YouTube URL format: https://www.youtube.com/watch?v=VIDEO_ID or https://www.youtube.com/@CHANNEL
-- Prefer channels with educational focus and high-quality production
 
 For Articles:
 - Prefer articles from reputable sources: official documentation, Medium publications, dev.to, freeCodeCamp, etc.
@@ -987,13 +1173,8 @@ Topic Context: ${content ? content.substring(0, 800) : 'No additional context'}
 Web Search Results:
 ${searchContext}
 
-Based on these search results and your knowledge, provide the highest quality learning resources. Use the actual URLs from the search results when available.`,
+Based on these search results and your knowledge, provide high quality articles, books, and experts to follow.`,
       schema: z.object({
-        youtubeVideos: z.array(z.object({
-          title: z.string().describe("The exact video title"),
-          url: z.string().describe("Full YouTube URL (must be youtube.com/watch?v= format)"),
-          channelName: z.string().describe("The YouTube channel name")
-        })).describe("3-5 high-quality educational YouTube videos"),
         articles: z.array(z.object({
           title: z.string().describe("The article title"),
           url: z.string().describe("Full article URL"),
@@ -1013,11 +1194,8 @@ Based on these search results and your knowledge, provide the highest quality le
       })
     })
 
-    // Post-process to validate and clean URLs
     const cleanedObject = {
-      youtubeVideos: object.youtubeVideos.filter(v => 
-        v.url.includes('youtube.com/watch') || v.url.includes('youtu.be')
-      ),
+      youtubeVideos: youtubeVideos,
       articles: object.articles.filter(a => 
         a.url.startsWith('http') && !a.url.includes('youtube.com')
       ),
