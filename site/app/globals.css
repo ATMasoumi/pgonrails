@@ -4,6 +4,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Set base HTML background to match dark theme */
+html {
+  background-color: #020202;
+}
+
 /* Enhanced LLM streaming animations */
 
 /* Bouncing dots animation for loading indicators */

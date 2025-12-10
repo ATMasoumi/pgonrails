@@ -3,6 +3,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar"
 import Features from "@/components/landing/Features"
 import WhoIsItFor from "@/components/landing/WhoIsItFor"
 import FinalCTA from "@/components/landing/FinalCTA"
+import { Footer } from "@/components/Footer"
 
 export const dynamic = 'force-dynamic';
 
@@ -20,10 +21,7 @@ export default async function Home() {
         <Features />
         <WhoIsItFor />
         <FinalCTA />
-        
-        <footer className="py-12 text-center text-gray-600 text-sm border-t border-white/10 bg-[#020202]">
-          <p>© {new Date().getFullYear()} DocTree. All rights reserved.</p>
-        </footer>
+        <Footer />
       </div>
     </div>
   )
