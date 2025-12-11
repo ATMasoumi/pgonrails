@@ -182,9 +182,10 @@ async function searchYouTubeVideos(query: string, maxResults = 6): Promise<YouTu
     // Search for more videos initially, then filter by quality
     const searchCount = Math.min(maxResults * 3, 25); // Fetch 3x more to filter
     
-    // Search for videos - order by viewCount to get popular videos first
+    // Search for videos - order by relevance first for niche topics, no duration filter
+    // Removed videoDuration=medium as it filters out many good educational videos
     const searchResponse = await fetch(
-      `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${searchCount}&order=viewCount&relevanceLanguage=en&videoDuration=medium&key=${apiKey}`
+      `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${searchCount}&order=relevance&relevanceLanguage=en&key=${apiKey}`
     );
     
     if (!searchResponse.ok) {
@@ -195,6 +196,8 @@ async function searchYouTubeVideos(query: string, maxResults = 6): Promise<YouTu
     
     const searchData = await searchResponse.json();
     const videoIds = searchData.items?.map((item: { id?: { videoId?: string } }) => item.id?.videoId).filter(Boolean) || [];
+    
+    console.log(`[YouTube API] Search returned ${videoIds.length} video IDs`);
     
     if (videoIds.length === 0) {
       return [];
@@ -208,14 +211,20 @@ async function searchYouTubeVideos(query: string, maxResults = 6): Promise<YouTu
       .map((id: string) => detailsMap.get(id))
       .filter((v: YouTubeVideoDetails | undefined): v is YouTubeVideoDetails => v !== undefined);
     
-    // Filter for quality: minimum 10K views
-    const MIN_VIEWS = 10000;
+    // For niche topics, use a lower view threshold (1K instead of 10K)
+    // This ensures we still get results for specialized educational content
+    const MIN_VIEWS = 1000;
     const qualityVideos = videos.filter(v => v.viewCount >= MIN_VIEWS);
     
-    // If we have enough quality videos, use those; otherwise use what we have
+    // If we have enough quality videos, use those; otherwise use ALL videos we found
     if (qualityVideos.length >= maxResults) {
       videos = qualityVideos;
+    } else if (qualityVideos.length > 0) {
+      // Use quality videos first, then fill with remaining
+      const remainingVideos = videos.filter(v => v.viewCount < MIN_VIEWS);
+      videos = [...qualityVideos, ...remainingVideos];
     }
+    // If no quality videos at all, just use what we have (videos array unchanged)
     
     // Sort by view count (highest first)
     videos.sort((a, b) => b.viewCount - a.viewCount);
@@ -223,7 +232,7 @@ async function searchYouTubeVideos(query: string, maxResults = 6): Promise<YouTu
     // Return top results
     const result = videos.slice(0, maxResults);
     
-    console.log(`[YouTube API] Found ${result.length} high-quality videos (min ${MIN_VIEWS} views)`);
+    console.log(`[YouTube API] Returning ${result.length} videos`);
     if (result.length > 0) {
       console.log(`[YouTube API] Top video: "${result[0].title}" with ${result[0].viewCount.toLocaleString()} views`);
     }
@@ -1026,7 +1035,7 @@ export async function updateNote(id: string, note: string) {
   revalidatePath(`/boards/${id}`)
 }
 
-export async function generateResources(documentId: string, topic: string, content: string | null) {
+export async function generateResources(documentId: string, topic: string, content: string | null, rootTitle?: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
@@ -1064,8 +1073,12 @@ export async function generateResources(documentId: string, topic: string, conte
     const youtubeApiKey = process.env.YOUTUBE_API_KEY;
     
     if (youtubeApiKey) {
-      console.log('[Resources] Fetching YouTube videos via YouTube API for:', topic);
-      const youtubeResults = await searchYouTubeVideos(`${topic} tutorial explained`, 6);
+      // Build search query with root title for better context (e.g., "Swift Concurrency Advanced Patterns")
+      const searchQuery = rootTitle && rootTitle !== topic 
+        ? `${rootTitle} ${topic}` 
+        : `${topic}`;
+      console.log('[Resources] Fetching YouTube videos via YouTube API for:', searchQuery);
+      const youtubeResults = await searchYouTubeVideos(searchQuery, 6);
       
       if (youtubeResults.length > 0) {
         youtubeVideos = youtubeResults.map(v => ({

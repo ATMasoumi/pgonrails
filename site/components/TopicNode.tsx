@@ -16,6 +16,7 @@ import { useTokenLimit } from '@/lib/hooks/use-token-limit'
 interface TopicNodeData extends Record<string, unknown> {
   id: string
   rootId: string
+  rootTitle: string
   label: string
   content: string | null
   createdAt: string
@@ -52,7 +53,7 @@ type TopicNode = Node<TopicNodeData>
 const animatedNodes = new Set<string>()
 
 export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) => {
-  const { label, content, onGenerate, id, rootId, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, isGeneratingSubtopics, isGeneratingExplanation, isGeneratingPodcast, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary, isNew } = data
+  const { label, content, onGenerate, id, rootId, rootTitle, hasChildren, isCollapsed, readOnly, onToggleCollapse, onDelete, hasQuiz, hasPodcast, hasFlashcards, hasResources, hasNote, hasSummary, isGeneratingQuiz, isGeneratingFlashcards, isGeneratingSubtopics, isGeneratingExplanation, isGeneratingPodcast, onOpenNote, onOpenQuiz, onOpenFlashcards, onOpenResources, onOpenSummary, isNew } = data
   const [isDeleting, setIsDeleting] = useState(false)
   
   // Check if this is a new node that hasn't been animated yet
@@ -193,7 +194,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
 
     setIsGeneratingResources(true)
     try {
-      const result = await generateResources(id, label, content)
+      const result = await generateResources(id, label, content, rootTitle)
       if (result.success && result.resources) {
         setResources(result.resources)
         onOpenResources(label, result.resources)

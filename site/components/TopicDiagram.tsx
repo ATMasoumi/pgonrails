@@ -619,6 +619,10 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     // Although we sort in the query, let's be safe and sort by ID here too if needed
     // But the query sort should be enough.
     
+    // Find the root document title
+    const rootDoc = rootId ? docMap.get(rootId) : documents.find(d => !d.parent_id)
+    const rootTitle = rootDoc?.query || ''
+    
     documents.forEach((doc) => {
       if (!isVisible(doc)) return
 
@@ -630,6 +634,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         data: { 
           id: doc.id,
           rootId,
+          rootTitle,
           label: doc.query, 
           content: doc.content,
           createdAt: doc.created_at,
