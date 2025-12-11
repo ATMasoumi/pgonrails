@@ -377,6 +377,120 @@ Generate a well-structured tree that helps someone master this topic from beginn
   }
 }
 
+// New action: Create topic and generate first level only (for immediate navigation)
+export async function createTopicWithFirstLevel(query: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/auth/signin')
+  }
+
+  // Check limits
+  await checkAndIncrementUsage(user.id, 0, 'gpt-5-mini')
+
+  if (!query) {
+    throw new Error('Query is required')
+  }
+
+  try {
+    // Create the root topic only - first level generation will be triggered by client
+    const { data, error } = await supabase
+      .from('documents')
+      .insert({
+        user_id: user.id,
+        query,
+        content: null,
+        parent_id: null
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Supabase error:', error)
+      throw new Error('Failed to save topic')
+    }
+
+    return { success: true, id: data.id }
+  } catch (error) {
+    console.error('Error creating topic:', error)
+    return { success: false, error: 'Failed to create topic' }
+  }
+}
+
+// Exported action to generate first-level subtopics - called from client after navigation
+export async function generateFirstLevelSubtopics(rootId: string, query: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/auth/signin')
+  }
+
+  try {
+    const { object, usage } = await generateObject({
+      model: openai('gpt-5-mini'),
+      system: `You are an expert that generates the main subtopics for any knowledge topic.
+Your job is to break the topic into 4-8 major categories that cover the entire subject.
+
+SUBTOPIC RULES:
+- Generate exactly 4-8 major subtopics that cover the whole concept
+- Each subtopic should represent a distinct major area of the topic
+- Cover fundamentals, key components, techniques, tools, and applications
+- Maintain balanced structure
+
+TITLE RULES (Critical for searchability):
+- Short, clear, readable: 3-6 words preferred, maximum 8 words
+- Each title must be searchable on the internet
+- Include the main keyword of that subtopic
+- Use concrete, Google-friendly phrases like:
+  ✓ "Supervised learning algorithms"
+  ✓ "iOS concurrency with async/await"  
+  ✓ "Database indexing strategies"
+- Avoid vague or poetic titles like:
+  ✗ "Going deeper"
+  ✗ "The journey begins"
+  ✗ "Understanding more"
+- No emojis, no special characters, no numbering`,
+      prompt: `Create 4-8 major subtopics for: "${query}"
+
+These should be the main categories/areas that someone would need to learn to master this topic.`,
+      schema: z.object({
+        subtopics: z.array(z.string().describe("Major subtopic title - 3-8 words, searchable"))
+      })
+    })
+
+    if (usage) {
+      console.log(`[First Level] Token usage: ${usage.totalTokens} tokens (Model: gpt-5-mini)`)
+      await checkAndIncrementUsage(user.id, usage.totalTokens, 'gpt-5-mini')
+    }
+
+    // Insert subtopics one by one with small delays to create progressive appearance
+    for (const subtopic of object.subtopics) {
+      const { error } = await supabase
+        .from('documents')
+        .insert({
+          user_id: user.id,
+          query: subtopic,
+          parent_id: rootId,
+          content: null
+        })
+      
+      if (error) {
+        console.error('Error inserting first-level subtopic:', error)
+      }
+      
+      // Small delay between inserts to create progressive appearance effect
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+    
+    return { success: true, count: object.subtopics.length }
+  } catch (error) {
+    console.error('Error generating first level subtopics:', error)
+    return { success: false, error: 'Failed to generate subtopics' }
+  }
+}
+
 export async function createTopic(query: string, parentId: string | null = null) {
   const supabase = await createClient()
   

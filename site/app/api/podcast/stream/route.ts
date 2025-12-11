@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
   try {
       console.log('[Podcast Stream] Generating script with OpenAI')
       const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: "gpt-5-mini",
           messages: [
               { role: "system", content: "You are an engaging podcast host. Convert the following article into a natural, conversational podcast script (monologue). Summarize key points, avoid reading verbatim, and keep it under 3800 characters maximum. Be concise but engaging. Do not include any sound effect cues or speaker labels, just the spoken text." },
               { role: "user", content: rawContent }

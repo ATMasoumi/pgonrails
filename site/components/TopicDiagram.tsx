@@ -11,7 +11,7 @@ import { SummarySidePanel } from './SummarySidePanel'
 import { QuizSidePanel, QuizQuestion } from './QuizSidePanel'
 import { FlashcardSidePanel, Flashcard } from './FlashcardSidePanel'
 import { ResourceData } from './ResourcesModal'
-import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz, generateFlashcards, getFlashcards, updateNodePosition, generatePodcast } from '@/app/documents/actions'
+import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz, generateFlashcards, getFlashcards, updateNodePosition, generatePodcast, generateFirstLevelSubtopics } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -44,7 +44,8 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   const dagreGraph = new dagre.graphlib.Graph()
   dagreGraph.setDefaultEdgeLabel(() => ({}))
 
-  dagreGraph.setGraph({ rankdir: 'LR', ranksep: 150, nodesep: 50 })
+  // Increase separation to reduce overlap when node action buttons appear
+  dagreGraph.setGraph({ rankdir: 'LR', ranksep: 220, nodesep: 90 })
 
   nodes.forEach((node) => {
     dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
@@ -78,13 +79,15 @@ interface TopicDiagramProps {
   documents: Document[]
   rootId?: string
   readOnly?: boolean
+  isGeneratingFirstLevel?: boolean
 }
 
-export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagramProps) {
+export function TopicDiagram({ documents, rootId, readOnly = false, isGeneratingFirstLevel = false }: TopicDiagramProps) {
   const router = useRouter()
   const { handleTokenLimitError } = useTokenLimit()
   const [generatingNodes, setGeneratingNodes] = useState<Record<string, { type: 'subtopic' | 'explanation', startedAt: number }>>({})
   const [generatingPodcasts, setGeneratingPodcasts] = useState<Record<string, number>>({})
+  const [isFirstLevelGenerating, setIsFirstLevelGenerating] = useState(isGeneratingFirstLevel)
   
   // Track when each node was first seen (for animation)
   const nodeFirstSeenAt = useRef<Map<string, number>>(new Map())
@@ -109,6 +112,48 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
       router.refresh()
     }
   }, [documents, router])
+
+  // Check if first-level generation is complete (root has children)
+  useEffect(() => {
+    if (isFirstLevelGenerating && rootId) {
+      const hasChildren = documents.some(d => d.parent_id === rootId)
+      if (hasChildren) {
+        // Wait a bit longer to ensure all first-level nodes are loaded
+        setTimeout(() => {
+          setIsFirstLevelGenerating(false)
+          // Remove the generating query param from URL
+          const url = new URL(window.location.href)
+          url.searchParams.delete('generating')
+          window.history.replaceState({}, '', url.toString())
+        }, 1000)
+      }
+    }
+  }, [documents, rootId, isFirstLevelGenerating])
+
+  // Trigger first-level generation when component mounts with generating flag
+  const hasTriggeredGeneration = useRef(false)
+  useEffect(() => {
+    if (isGeneratingFirstLevel && rootId && documents.length > 0 && !hasTriggeredGeneration.current) {
+      const rootDoc = documents.find(d => d.id === rootId)
+      const hasChildren = documents.some(d => d.parent_id === rootId)
+      
+      // Only trigger if root exists and has no children yet
+      if (rootDoc && !hasChildren) {
+        hasTriggeredGeneration.current = true
+        console.log('TopicDiagram: Triggering first-level generation for', rootDoc.query)
+        
+        generateFirstLevelSubtopics(rootId, rootDoc.query).then(result => {
+          console.log('TopicDiagram: First-level generation result:', result)
+          if (!result.success) {
+            toast.error('Failed to generate subtopics')
+          }
+        }).catch(err => {
+          console.error('TopicDiagram: First-level generation error:', err)
+          toast.error('Failed to generate subtopics')
+        })
+      }
+    }
+  }, [isGeneratingFirstLevel, rootId, documents])
 
   // Load generating state from localStorage on mount
   useEffect(() => {
@@ -163,24 +208,24 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     }
   }, [])
 
-  // Polling fallback: If there are pending generations, poll every 2 seconds
+  // Polling fallback: If there are pending generations OR first level is generating, poll every 1 second
   useEffect(() => {
-    const hasPendingGenerations = Object.keys(generatingNodes).length > 0 || Object.keys(generatingPodcasts).length > 0
+    const hasPendingGenerations = Object.keys(generatingNodes).length > 0 || Object.keys(generatingPodcasts).length > 0 || isFirstLevelGenerating
     
     if (!hasPendingGenerations) return
     
-    console.log('TopicDiagram: Starting polling for pending generations')
+    console.log('TopicDiagram: Starting polling for pending generations (isFirstLevelGenerating:', isFirstLevelGenerating, ')')
     
     const pollInterval = setInterval(() => {
       console.log('TopicDiagram: Polling refresh...')
       router.refresh()
-    }, 2000)
+    }, 1000) // Poll more frequently for better UX
     
     return () => {
       console.log('TopicDiagram: Stopping polling')
       clearInterval(pollInterval)
     }
-  }, [generatingNodes, generatingPodcasts, router])
+  }, [generatingNodes, generatingPodcasts, router, isFirstLevelGenerating])
 
   // Clean up generatingNodes based on actual document state
   useEffect(() => {
@@ -627,6 +672,9 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
       if (!isVisible(doc)) return
 
       const hasPosition = doc.position_x !== null && doc.position_x !== undefined && doc.position_y !== null && doc.position_y !== undefined
+      
+      // Check if this is the root node and we're generating first level
+      const isRootGenerating = isFirstLevelGenerating && doc.id === rootId
 
       nodes.push({
         id: doc.id,
@@ -655,7 +703,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
           hasSummary: !!doc.summary,
           isGeneratingQuiz: quizPanelState.isGenerating && quizPanelState.documentId === doc.id,
           isGeneratingFlashcards: flashcardPanelState.isGenerating && flashcardPanelState.documentId === doc.id,
-          isGeneratingSubtopics: generatingNodes[doc.id]?.type === 'subtopic',
+          isGeneratingSubtopics: generatingNodes[doc.id]?.type === 'subtopic' || isRootGenerating,
           isGeneratingExplanation: generatingNodes[doc.id]?.type === 'explanation',
           isGeneratingPodcast: !!generatingPodcasts[doc.id],
           readOnly,
@@ -727,7 +775,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
     })
 
     return getLayoutedElements(nodes, edges)
-  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenQuiz, handleOpenFlashcards, handleOpenResources, handleOpenSummary, quizPanelState.isGenerating, quizPanelState.documentId, flashcardPanelState.isGenerating, flashcardPanelState.documentId, generatingNodes, generatingPodcasts])
+  }, [documents, router, collapsedIds, toggleCollapse, rootId, readOnly, handleOpenNote, handleOpenQuiz, handleOpenFlashcards, handleOpenResources, handleOpenSummary, quizPanelState.isGenerating, quizPanelState.documentId, flashcardPanelState.isGenerating, flashcardPanelState.documentId, generatingNodes, generatingPodcasts, isFirstLevelGenerating, handleGenerationError])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -762,6 +810,7 @@ export function TopicDiagram({ documents, rootId, readOnly = false }: TopicDiagr
         onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
         fitView
+        fitViewOptions={{ padding: 0.3, maxZoom: 0.8 }}
         minZoom={0.01}
         maxZoom={4}
         attributionPosition="bottom-right"

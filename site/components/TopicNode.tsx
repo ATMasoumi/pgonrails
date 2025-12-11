@@ -262,7 +262,7 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
     }
   }, [isReady, currentUrl, podcastUrl])
 
-
+  const isGenerating = isGeneratingSubtopics || isGeneratingExplanation
 
   return (
     <motion.div 
@@ -284,16 +284,26 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
         className="!bg-blue-500 !w-2 !h-2 !-ml-1 !border-0 z-50"
       />
       
+      {/* Subtle animated border for generating state */}
+      {isGenerating && (
+        <div className="absolute -inset-[1px] rounded-xl overflow-hidden z-0 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] aspect-square animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,transparent_0%,#3b82f6_50%,transparent_100%)] blur-[1px] opacity-60" />
+        </div>
+      )}
+      
       <div 
         className={cn(
-          "bg-[#0A0A0A]/90 backdrop-blur-md rounded-xl border border-white/10 shadow-lg transition-all duration-300 w-[360px] overflow-hidden hover:border-blue-500/50 hover:shadow-blue-500/10 hover:shadow-xl group-hover:scale-[1.02]",
-          (isGeneratingSubtopics || isGeneratingExplanation) ? "ring-2 ring-blue-500/20 animate-pulse" : ""
+          "relative bg-[#0A0A0A]/90 backdrop-blur-md rounded-xl border border-white/10 shadow-lg transition-all duration-300 w-[360px] overflow-hidden hover:border-blue-500/50 hover:shadow-blue-500/10 hover:shadow-xl group-hover:scale-[1.02]",
+          isGenerating && "border-transparent"
         )}
       >
         <div className="p-4 flex flex-col gap-3">
           {/* Header: Title + Actions */}
           <div className="flex items-start justify-between gap-2">
-            <span className="font-semibold text-base text-gray-400 leading-snug break-words flex-1 group-hover:text-blue-400 transition-colors" title={label}>
+            <span className={cn(
+              "font-semibold text-base leading-snug break-words flex-1 transition-colors",
+              isGenerating ? "text-blue-400" : "text-gray-400 group-hover:text-blue-400"
+            )} title={label}>
               {label}
             </span>
             

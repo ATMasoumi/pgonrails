@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { createTopic } from "@/app/documents/actions"
+import { createTopicWithFirstLevel } from "@/app/documents/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Sparkles } from "lucide-react"
@@ -38,27 +38,28 @@ export function AddTopicForm({ showSuggestions = false }: AddTopicFormProps) {
   async function handleCreateTopic(query: string) {
     setIsLoading(true)
     try {
-      const result = await createTopic(query)
+      // Create the root topic first
+      const result = await createTopicWithFirstLevel(query)
       
-      if (result.success) {
+      if (result.success && result.id) {
         setInputValue("")
-        startTransition(() => {
-          router.refresh()
-        })
+        // Navigate to the topic diagram immediately to see progressive generation
+        router.push(`/dashboard/${result.id}?generating=true`)
       } else {
         console.error(result.error)
         if (!handleTokenLimitError(result.error)) {
           toast.error("Failed to create topic. Please try again.")
         }
+        setIsLoading(false)
       }
     } catch (error: unknown) {
       console.error(error)
       if (!handleTokenLimitError(error)) {
         toast.error("An error occurred. Please try again.")
       }
-    } finally {
       setIsLoading(false)
     }
+    // Note: Don't setIsLoading(false) on success since we're navigating away
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {

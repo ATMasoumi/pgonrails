@@ -2,8 +2,55 @@
 
 import { useState, useMemo } from 'react'
 import { Check, Copy, Terminal, FileCode, Hash, Braces } from 'lucide-react'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import jsLang from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
+import tsLang from 'react-syntax-highlighter/dist/esm/languages/prism/typescript'
+import tsxLang from 'react-syntax-highlighter/dist/esm/languages/prism/tsx'
+import jsxLang from 'react-syntax-highlighter/dist/esm/languages/prism/jsx'
+import bashLang from 'react-syntax-highlighter/dist/esm/languages/prism/bash'
+import jsonLang from 'react-syntax-highlighter/dist/esm/languages/prism/json'
+import htmlLang from 'react-syntax-highlighter/dist/esm/languages/prism/markup'
+import cssLang from 'react-syntax-highlighter/dist/esm/languages/prism/css'
+import scssLang from 'react-syntax-highlighter/dist/esm/languages/prism/scss'
+import sqlLang from 'react-syntax-highlighter/dist/esm/languages/prism/sql'
+import yamlLang from 'react-syntax-highlighter/dist/esm/languages/prism/yaml'
+import pythonLang from 'react-syntax-highlighter/dist/esm/languages/prism/python'
+import goLang from 'react-syntax-highlighter/dist/esm/languages/prism/go'
+import rustLang from 'react-syntax-highlighter/dist/esm/languages/prism/rust'
+import rubyLang from 'react-syntax-highlighter/dist/esm/languages/prism/ruby'
+import phpLang from 'react-syntax-highlighter/dist/esm/languages/prism/php'
+import swiftLang from 'react-syntax-highlighter/dist/esm/languages/prism/swift'
+import kotlinLang from 'react-syntax-highlighter/dist/esm/languages/prism/kotlin'
+
+// Register only the languages we need to avoid missing vendor chunks
+SyntaxHighlighter.registerLanguage('javascript', jsLang)
+SyntaxHighlighter.registerLanguage('js', jsLang)
+SyntaxHighlighter.registerLanguage('typescript', tsLang)
+SyntaxHighlighter.registerLanguage('ts', tsLang)
+SyntaxHighlighter.registerLanguage('tsx', tsxLang)
+SyntaxHighlighter.registerLanguage('jsx', jsxLang)
+SyntaxHighlighter.registerLanguage('bash', bashLang)
+SyntaxHighlighter.registerLanguage('sh', bashLang)
+SyntaxHighlighter.registerLanguage('shell', bashLang)
+SyntaxHighlighter.registerLanguage('zsh', bashLang)
+SyntaxHighlighter.registerLanguage('json', jsonLang)
+SyntaxHighlighter.registerLanguage('html', htmlLang)
+SyntaxHighlighter.registerLanguage('css', cssLang)
+SyntaxHighlighter.registerLanguage('scss', scssLang)
+SyntaxHighlighter.registerLanguage('sql', sqlLang)
+SyntaxHighlighter.registerLanguage('yaml', yamlLang)
+SyntaxHighlighter.registerLanguage('yml', yamlLang)
+SyntaxHighlighter.registerLanguage('python', pythonLang)
+SyntaxHighlighter.registerLanguage('py', pythonLang)
+SyntaxHighlighter.registerLanguage('go', goLang)
+SyntaxHighlighter.registerLanguage('rust', rustLang)
+SyntaxHighlighter.registerLanguage('ruby', rubyLang)
+SyntaxHighlighter.registerLanguage('rb', rubyLang)
+SyntaxHighlighter.registerLanguage('php', phpLang)
+SyntaxHighlighter.registerLanguage('swift', swiftLang)
+SyntaxHighlighter.registerLanguage('kotlin', kotlinLang)
+SyntaxHighlighter.registerLanguage('text', htmlLang)
 
 interface CodeBlockProps {
   language: string
@@ -117,13 +164,15 @@ function LanguageIcon({ type }: { type?: 'terminal' | 'code' | 'hash' | 'braces'
 export function CodeBlock({ language, value }: CodeBlockProps) {
   const [isCopied, setIsCopied] = useState(false)
   
-  // Detect language if not provided or is generic
+  const SUPPORTED_LANGS = useMemo(() => new Set([
+    'javascript','js','typescript','ts','tsx','jsx','bash','sh','shell','zsh','json','html','css','scss','sql','yaml','yml','python','py','go','rust','ruby','rb','php','swift','kotlin','text'
+  ]), [])
+  
+  // Detect language if not provided or is generic and clamp to supported set
   const detectedLang = useMemo(() => {
-    if (!language || language === 'text' || language === 'plaintext') {
-      return detectLanguage(value)
-    }
-    return language.toLowerCase()
-  }, [language, value])
+    const raw = (!language || language === 'text' || language === 'plaintext') ? detectLanguage(value) : language.toLowerCase()
+    return SUPPORTED_LANGS.has(raw) ? raw : 'text'
+  }, [language, value, SUPPORTED_LANGS])
   
   const langConfig = LANGUAGE_CONFIG[detectedLang] || { name: detectedLang || 'Code', icon: 'code' }
 

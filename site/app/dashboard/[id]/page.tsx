@@ -8,8 +8,17 @@ import { ArrowLeft } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
-export default async function TopicDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TopicDetailsPage({ 
+  params, 
+  searchParams 
+}: { 
+  params: Promise<{ id: string }>,
+  searchParams: Promise<{ generating?: string }>
+}) {
   const { id } = await params
+  const { generating } = await searchParams
+  const isGeneratingFirstLevel = generating === 'true'
+  
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -91,7 +100,7 @@ export default async function TopicDetailsPage({ params }: { params: Promise<{ i
       {/* Main Content - Full Height Diagram */}
       <main className="flex-1 relative w-full bg-[#020202]">
          <div className="absolute inset-0">
-            <TopicDiagram documents={treeDocuments} rootId={id} />
+            <TopicDiagram documents={treeDocuments} rootId={id} isGeneratingFirstLevel={isGeneratingFirstLevel} />
          </div>
       </main>
     </div>
