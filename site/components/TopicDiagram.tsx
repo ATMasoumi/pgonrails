@@ -11,7 +11,7 @@ import { SummarySidePanel } from './SummarySidePanel'
 import { QuizSidePanel, QuizQuestion } from './QuizSidePanel'
 import { FlashcardSidePanel, Flashcard } from './FlashcardSidePanel'
 import { ResourceData } from './ResourcesModal'
-import { generateTopicContent, deleteTopic, generateQuiz, getLatestQuiz, generateFlashcards, getFlashcards, updateNodePosition, generatePodcast, generateFirstLevelSubtopics } from '@/app/documents/actions'
+import { generateTopicContent, deleteTopic, updateNodePosition, generatePodcast, generateFirstLevelSubtopics } from '@/app/documents/actions'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -458,85 +458,112 @@ export function TopicDiagram({ documents, rootId, readOnly = false, isGenerating
     })
   }, [])
 
-  const handleOpenQuiz = useCallback(async (id: string) => {
+  const handleOpenQuiz = useCallback((id: string) => {
     const doc = documents.find(d => d.id === id)
     if (!doc || !doc.content) return
 
-    // Set loading state but DON'T open panel yet
-    setQuizPanelState({
-      isOpen: false,
-      title: doc.query,
-      documentId: id,
-      content: doc.content,
-      questions: [],
-      quizId: null,
-      existingAnswers: undefined,
-      isGenerating: true
-    })
+    // If quiz already exists, open it immediately
+    if (doc.quizzes && doc.quizzes.length > 0) {
+      setQuizPanelState(prev => ({ ...prev, documentId: id, isGenerating: true }))
+      toast.info("Loading quiz...")
 
-    try {
-      // Check for existing quiz first
-      const existing = await getLatestQuiz(id)
-      if (existing && existing.quiz) {
-        setQuizPanelState(prev => ({
-          ...prev,
-          isOpen: true,
-          questions: existing.quiz.questions,
-          quizId: existing.quiz.id,
-          existingAnswers: existing.attempt?.answers,
-          isGenerating: false
-        }))
-        return
-      }
-
-      // Generate new quiz if none exists
-      const result = await generateQuiz(id, doc.content)
-      if (result.success && result.quiz) {
-        setQuizPanelState(prev => ({
-          ...prev,
-          isOpen: true,
-          questions: result.quiz.questions,
-          quizId: result.quizId,
-          isGenerating: false
-        }))
-        // Refresh to update the button state
-        router.refresh()
-      } else {
-        setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
-      }
-    } catch (error) {
-      handleGenerationError(error)
-      setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
+      fetch('/api/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: id })
+      })
+        .then(res => res.json())
+        .then((data) => {
+          if (data.success && data.quiz) {
+            setQuizPanelState({
+              isOpen: true,
+              title: doc.query,
+              documentId: id,
+              content: doc.content,
+              questions: data.quiz.questions,
+              quizId: data.quiz.id,
+              existingAnswers: data.attempt?.answers,
+              isGenerating: false
+            })
+          } else {
+            toast.error(data.error || "Failed to load quiz")
+            setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
+          }
+        })
+        .catch((error) => {
+          console.error("Error loading quiz:", error)
+          toast.error("Failed to load quiz")
+          setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
+        })
+      return
     }
-  }, [documents, router, handleGenerationError])
 
-  const handleGenerateNewQuiz = useCallback(async () => {
+    // If no quiz exists, generate in background without opening panel
+    setQuizPanelState(prev => ({
+      ...prev,
+      documentId: id,
+      isGenerating: true
+    }))
+
+    toast.info("Generating quiz...")
+
+    fetch('/api/generate-quiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentId: id })
+    })
+      .then(res => res.json())
+      .then((data) => {
+        if (data.success && data.quiz) {
+          toast.success("Quiz ready!")
+          router.refresh()
+        } else {
+          toast.error(data.error || "Failed to generate quiz")
+        }
+      })
+      .catch((error) => {
+        console.error("Error generating quiz:", error)
+        toast.error("Failed to generate quiz")
+      })
+      .finally(() => {
+        setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
+      })
+  }, [documents, router])
+
+  const handleGenerateNewQuiz = useCallback(() => {
     const { documentId, content } = quizPanelState
     if (!documentId || !content) return
 
     setQuizPanelState(prev => ({ ...prev, isGenerating: true, questions: [], existingAnswers: undefined }))
 
-    try {
-      const result = await generateQuiz(documentId, content)
-      if (result.success && result.quiz) {
-        setQuizPanelState(prev => ({
-          ...prev,
-          questions: result.quiz.questions,
-          quizId: result.quizId,
-          isGenerating: false
-        }))
-        // Refresh to update the button state
-        router.refresh()
-      } else {
+    // Use fetch API for truly async operation (regenerate by first deleting, then creating)
+    fetch('/api/generate-quiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentId })
+    })
+      .then(res => res.json())
+      .then((data) => {
+        if (data.success && data.quiz) {
+          setQuizPanelState(prev => ({
+            ...prev,
+            questions: data.quiz.questions,
+            quizId: data.quiz.id,
+            isGenerating: false
+          }))
+          router.refresh()
+        } else {
+          setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
+        }
+      })
+      .catch((error) => {
+        console.error("Error generating quiz:", error)
+        toast.error("Failed to generate quiz")
         setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
-      }
-    } catch (error) {
-      handleGenerationError(error)
-      setQuizPanelState(prev => ({ ...prev, isGenerating: false }))
-    }
-  }, [quizPanelState, router, handleGenerationError])
+      })
+  }, [quizPanelState, router])
 
-  const handleOpenFlashcards = useCallback(async (id: string) => {
+  const handleOpenFlashcards = useCallback((id: string) => {
     const doc = documents.find(d => d.id === id)
     if (!doc || !doc.content) return
 
@@ -546,79 +573,104 @@ export function TopicDiagram({ documents, rootId, readOnly = false, isGenerating
       return
     }
 
-    // Set loading state but DON'T open panel yet
-    setFlashcardPanelState({
-      isOpen: false,
-      title: doc.query,
-      documentId: id,
-      content: doc.content,
-      cards: [],
-      masteredIndices: [],
-      isGenerating: true
-    })
+    // If flashcards already exist, open them immediately
+    if (doc.flashcards && doc.flashcards.length > 0) {
+      setFlashcardPanelState(prev => ({ ...prev, documentId: id, isGenerating: true }))
+      toast.info("Loading flashcards...")
 
-    try {
-      // Check for existing flashcards first
-      const existing = await getFlashcards(id)
-      if (existing && existing.cards && existing.cards.length > 0) {
-        // Open panel with existing cards and mastered state
-        setFlashcardPanelState(prev => ({
-          ...prev,
-          isOpen: true,
-          cards: existing.cards,
-          masteredIndices: existing.mastered_indices || [],
-          isGenerating: false
-        }))
-        return
-      }
-
-      // Generate new flashcards if none exist
-      const result = await generateFlashcards(id, doc.content)
-      if (result.success && result.flashcards) {
-        // Open panel after flashcards are generated
-        setFlashcardPanelState(prev => ({
-          ...prev,
-          isOpen: true,
-          cards: result.flashcards.cards,
-          masteredIndices: [],
-          isGenerating: false
-        }))
-        // Refresh to update the button state
-        router.refresh()
-      } else {
-        setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
-      }
-    } catch (error) {
-      handleGenerationError(error)
-      setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
+      fetch('/api/generate-flashcards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: id })
+      })
+        .then(res => res.json())
+        .then((data) => {
+          if (data.success && data.flashcards) {
+            setFlashcardPanelState({
+              isOpen: true,
+              title: doc.query,
+              documentId: id,
+              content: doc.content,
+              cards: data.flashcards.cards,
+              masteredIndices: data.flashcards.mastered_indices || [],
+              isGenerating: false
+            })
+          } else {
+            toast.error(data.error || "Failed to load flashcards")
+            setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
+          }
+        })
+        .catch((error) => {
+          console.error("Error loading flashcards:", error)
+          toast.error("Failed to load flashcards")
+          setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
+        })
+      return
     }
-  }, [documents, router, handleGenerationError])
 
-  const handleGenerateNewFlashcards = useCallback(async () => {
+    // If no flashcards exist, generate in background without opening panel
+    setFlashcardPanelState(prev => ({
+      ...prev,
+      documentId: id,
+      isGenerating: true
+    }))
+
+    toast.info("Generating flashcards...")
+
+    fetch('/api/generate-flashcards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentId: id })
+    })
+      .then(res => res.json())
+      .then((data) => {
+        if (data.success && data.flashcards) {
+          toast.success("Flashcards ready!")
+          router.refresh()
+        } else {
+          toast.error(data.error || "Failed to generate flashcards")
+        }
+      })
+      .catch((error) => {
+        console.error("Error generating flashcards:", error)
+        toast.error("Failed to generate flashcards")
+      })
+      .finally(() => {
+        setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
+      })
+  }, [documents, router, flashcardPanelState.documentId, flashcardPanelState.cards.length])
+
+  const handleGenerateNewFlashcards = useCallback(() => {
     const { documentId, content } = flashcardPanelState
     if (!documentId || !content) return
 
     setFlashcardPanelState(prev => ({ ...prev, isGenerating: true, cards: [] }))
 
-    try {
-      // Force regenerate new flashcards
-      const result = await generateFlashcards(documentId, content, true)
-      if (result.success && result.flashcards) {
-        setFlashcardPanelState(prev => ({
-          ...prev,
-          cards: result.flashcards.cards,
-          isGenerating: false
-        }))
-        // Refresh to update the button state
-        router.refresh()
-      } else {
+    // Use fetch API for truly async operation
+    fetch('/api/generate-flashcards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentId, forceRegenerate: true })
+    })
+      .then(res => res.json())
+      .then((data) => {
+        if (data.success && data.flashcards) {
+          setFlashcardPanelState(prev => ({
+            ...prev,
+            cards: data.flashcards.cards,
+            isGenerating: false
+          }))
+          router.refresh()
+        } else {
+          setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
+        }
+      })
+      .catch((error) => {
+        console.error("Error generating flashcards:", error)
+        toast.error("Failed to generate flashcards")
         setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
-      }
-    } catch (error) {
-      handleGenerationError(error)
-      setFlashcardPanelState(prev => ({ ...prev, isGenerating: false }))
-    }
-  }, [flashcardPanelState, router, handleGenerationError])
+      })
+  }, [flashcardPanelState, router])
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsedIds(prev => {

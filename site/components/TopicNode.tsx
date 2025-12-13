@@ -5,7 +5,6 @@ import { Handle, Position, NodeProps, Node } from '@xyflow/react'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, BookOpen, Trash2, Plus, Minus, Brain, Headphones, StickyNote, Layers, Square, Library } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { getPodcast, generateResources, generateSummary } from '@/app/documents/actions'
 import { ResourceData } from '@/components/ResourcesModal'
 import { usePodcast } from '@/lib/contexts/PodcastContext'
 import { toast } from 'sonner'
@@ -110,33 +109,72 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
   
   const isThisPodcastPlaying = isPlaying && currentUrl === podcastUrl
 
-  const handleSummaryClick = async (e: React.MouseEvent) => {
+  const handleSummaryClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     
+    // If we have summary cached locally, open it
     if (summary) {
       onOpenSummary(label, summary)
       return
     }
 
-    setIsGeneratingSummary(true)
-    try {
-      const result = await generateSummary(id)
-      if (result.success && result.summary) {
-        setSummary(result.summary)
-        onOpenSummary(label, result.summary)
-      } else {
-        if (!handleTokenLimitError(result.error)) {
-          toast.error(result.error || 'Failed to generate summary')
-        }
-      }
-    } catch (error: unknown) {
-      console.error(error)
-      if (!handleTokenLimitError(error)) {
-        toast.error('Failed to generate summary')
-      }
-    } finally {
-      setIsGeneratingSummary(false)
+    // If summary exists in DB, load and open it
+    if (hasSummary) {
+      if (isGeneratingSummary) return
+      setIsGeneratingSummary(true)
+      toast.info("Loading summary...")
+
+      fetch('/api/generate-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: id })
+      })
+        .then(res => res.json())
+        .then((data) => {
+          if (data.success && data.summary) {
+            setSummary(data.summary)
+            onOpenSummary(label, data.summary)
+          } else {
+            toast.error(data.error || 'Failed to load summary')
+          }
+        })
+        .catch((error) => {
+          console.error(error)
+          toast.error('Failed to load summary')
+        })
+        .finally(() => {
+          setIsGeneratingSummary(false)
+        })
+      return
     }
+
+    // Generate new summary in background without opening panel
+    if (isGeneratingSummary) return
+
+    setIsGeneratingSummary(true)
+    toast.info("Generating summary...")
+
+    fetch('/api/generate-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentId: id })
+    })
+      .then(res => res.json())
+      .then((data) => {
+        if (data.success && data.summary) {
+          setSummary(data.summary)
+          toast.success("Summary ready!")
+        } else {
+          toast.error(data.error || 'Failed to generate summary')
+        }
+      })
+      .catch((error) => {
+        console.error(error)
+        toast.error('Failed to generate summary')
+      })
+      .finally(() => {
+        setIsGeneratingSummary(false)
+      })
   }
 
   const handleGenerate = async (type: 'subtopic' | 'explanation') => {
@@ -183,37 +221,73 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
     onOpenFlashcards(id)
   }
 
-  const handleResourcesClick = async (e: React.MouseEvent) => {
+  const handleResourcesClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!content || isGeneratingResources) return
 
+    // If we have resources cached locally, open them
     if (resources) {
       onOpenResources(label, resources)
       return
     }
 
-    setIsGeneratingResources(true)
-    try {
-      const result = await generateResources(id, label, content, rootTitle)
-      if (result.success && result.resources) {
-        setResources(result.resources)
-        onOpenResources(label, result.resources)
-      } else {
-        if (!handleTokenLimitError(result.error)) {
-          toast.error(result.error || 'Failed to generate resources')
-        }
-      }
-    } catch (error: unknown) {
-      console.error('Error generating resources:', error)
-      if (!handleTokenLimitError(error)) {
-        toast.error('An error occurred while generating resources')
-      }
-    } finally {
-      setIsGeneratingResources(false)
+    // If resources exist in DB, load and open them
+    if (hasResources) {
+      setIsGeneratingResources(true)
+      toast.info("Loading resources...")
+
+      fetch('/api/generate-resources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: id, topic: label, content, rootTitle })
+      })
+        .then(res => res.json())
+        .then((data) => {
+          if (data.success && data.resources) {
+            setResources(data.resources)
+            onOpenResources(label, data.resources)
+          } else {
+            toast.error(data.error || 'Failed to load resources')
+          }
+        })
+        .catch((error) => {
+          console.error('Error loading resources:', error)
+          toast.error('Failed to load resources')
+        })
+        .finally(() => {
+          setIsGeneratingResources(false)
+        })
+      return
     }
+
+    // Generate new resources in background without opening panel
+    setIsGeneratingResources(true)
+    toast.info("Generating resources...")
+
+    fetch('/api/generate-resources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentId: id, topic: label, content, rootTitle })
+    })
+      .then(res => res.json())
+      .then((data) => {
+        if (data.success && data.resources) {
+          setResources(data.resources)
+          toast.success("Resources ready!")
+        } else {
+          toast.error(data.error || 'Failed to generate resources')
+        }
+      })
+      .catch((error) => {
+        console.error('Error generating resources:', error)
+        toast.error('Failed to generate resources')
+      })
+      .finally(() => {
+        setIsGeneratingResources(false)
+      })
   }
 
-  const handlePodcastClick = async (e: React.MouseEvent) => {
+  const handlePodcastClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     
     if (isThisPodcastPlaying) {
@@ -230,29 +304,12 @@ export const TopicNode = memo(({ data, isConnectable }: NodeProps<TopicNode>) =>
     if (isGeneratingPodcast || isFetchingPodcast) return
 
     setIsFetchingPodcast(true)
-    try {
-      let url = podcastUrl
-
-      if (!url) {
-        // Prefer existing cached podcast if present
-        const existing = await getPodcast(id)
-        if (existing) {
-          url = existing.audio_url
-          setPodcastUrl(url)
-        } else {
-          // Stream directly for immediate playback; cache-bust to avoid stale responses
-          url = `/api/podcast/stream?documentId=${id}&t=${Date.now()}`
-          setPodcastUrl(url)
-        }
-      }
-
-      if (url) {
-        playPodcast(url, label)
-      }
-    } catch (error) {
-      console.error('Error playing podcast:', error)
-      setIsFetchingPodcast(false)
-    }
+    
+    // Go directly to the stream URL - it handles both existing podcasts and generation
+    // This avoids blocking on server actions and starts playback immediately
+    const url = `/api/podcast/stream?documentId=${id}&t=${Date.now()}`
+    setPodcastUrl(url)
+    playPodcast(url, label)
   }
 
   // Clear local fetching state once this node's stream becomes ready
