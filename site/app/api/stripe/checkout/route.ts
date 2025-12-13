@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     if (stripeCustomerId) {
       try {
         await stripe.customers.retrieve(stripeCustomerId);
-      } catch (error: any) {
+      } catch (err) {
         // Customer doesn't exist in Stripe (e.g., switching from test to live mode)
         console.log(`[Checkout API] Customer ${stripeCustomerId} not found in Stripe, creating new customer`);
         stripeCustomerId = null;

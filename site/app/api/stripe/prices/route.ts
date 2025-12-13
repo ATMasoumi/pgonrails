@@ -17,7 +17,7 @@ export async function GET() {
 
     // Group by product metadata or name to identify plan types
     const formattedPrices = subscriptionPrices.map((price) => {
-      const product = price.product as any;
+      const product = price.product as Stripe.Product;
       return {
         id: price.id,
         productId: product.id,

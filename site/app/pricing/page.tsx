@@ -95,7 +95,7 @@ export default async function PricingPage() {
     if (product.metadata?.features) {
       try {
         return JSON.parse(product.metadata.features);
-      } catch (e) {
+      } catch {
         // If not JSON, split by comma or newline
         return product.metadata.features.split(/[,\n]/).map(f => f.trim()).filter(Boolean);
       }
