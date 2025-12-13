@@ -21,6 +21,17 @@ export async function POST(req: NextRequest) {
 
     let stripeCustomerId = customerData?.stripe_customer_id;
 
+    // Verify the customer exists in Stripe, or create a new one
+    if (stripeCustomerId) {
+      try {
+        await stripe.customers.retrieve(stripeCustomerId);
+      } catch (error: any) {
+        // Customer doesn't exist in Stripe (e.g., switching from test to live mode)
+        console.log(`[Checkout API] Customer ${stripeCustomerId} not found in Stripe, creating new customer`);
+        stripeCustomerId = null;
+      }
+    }
+
     if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
         email: user.email,
@@ -29,14 +40,18 @@ export async function POST(req: NextRequest) {
         },
       });
       stripeCustomerId = customer.id;
-      const { error: insertError } = await supabaseAdmin
+      
+      // Upsert the customer record (update if exists, insert if not)
+      const { error: upsertError } = await supabaseAdmin
         .from('customers')
-        .insert({ id: user.id, stripe_customer_id: stripeCustomerId });
+        .upsert({ id: user.id, stripe_customer_id: stripeCustomerId }, { onConflict: 'id' });
 
-      if (insertError) {
-        console.error('Error inserting customer:', insertError);
+      if (upsertError) {
+        console.error('[Checkout API] Error upserting customer:', upsertError);
         throw new Error('Failed to create customer record');
       }
+      
+      console.log(`[Checkout API] Created new Stripe customer: ${stripeCustomerId}`);
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -59,7 +74,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error) {
-    console.error(error);
-    return new NextResponse('Internal Error', { status: 500 });
+    console.error('[Checkout API] Error creating checkout session:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return NextResponse.json(
+      { error: 'Failed to create checkout session', details: errorMessage },
+      { status: 500 }
+    );
   }
 }
